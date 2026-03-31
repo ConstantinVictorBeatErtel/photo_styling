@@ -11,7 +11,7 @@ from PIL import Image
 from skimage.metrics import structural_similarity
 
 
-PROJECT_ROOT = Path("/Users/ConstiX/autohdr")
+PROJECT_ROOT = Path(__file__).resolve().parent
 DATA_ROOT = PROJECT_ROOT / "data"
 OUTPUT_ROOT = PROJECT_ROOT / "teacher_outputs"
 MODEL_ID = "timbrooks/instruct-pix2pix"
@@ -118,7 +118,7 @@ def build_prompt(style: str, preserve_content: bool) -> str:
             "Apply only photographic edits such as exposure, white balance, contrast, saturation, "
             f"and mood to match this style: {style}"
         )
-    return f"Edit this real estate photo: {style}"
+    return f"Edit this photo: {style}"
 
 
 def generate_for_expert(

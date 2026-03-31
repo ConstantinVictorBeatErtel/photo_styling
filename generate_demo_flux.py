@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from PIL import Image
 
 
-PROJECT_ROOT = Path("/Users/ConstiX/autohdr")
+PROJECT_ROOT = Path(__file__).resolve().parent
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL_ID = "black-forest-labs/flux.2-pro"
 TEST_FILES = [f"{i:04d}.jpg" for i in range(201, 206)]

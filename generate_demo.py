@@ -112,7 +112,7 @@ col_labels = [
 
 fig, axes = plt.subplots(5, 4, figsize=(24, 30))
 fig.suptitle(
-    "AutoHDR: Personalized Style Distillation\nSame raw input → two distinct photographer styles",
+    "Photo Styling\nSame raw input -> two distinct candidate styles",
     fontsize=14, fontweight="bold", y=0.99
 )
 

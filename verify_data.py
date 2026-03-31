@@ -6,7 +6,7 @@ from pathlib import Path
 from PIL import Image
 
 
-DATA_ROOT = Path.home() / "autohdr" / "data"
+DATA_ROOT = Path(__file__).resolve().parent / "data"
 EXPECTED_COUNT = 220
 EXPECTED_SIZE = (512, 512)
 EXPECTED_MODE = "RGB"

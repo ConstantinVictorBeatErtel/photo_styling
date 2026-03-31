@@ -6,9 +6,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 
-PROJECT_ROOT = Path("/Users/ConstiX/autohdr")
+PROJECT_ROOT = Path(__file__).resolve().parent
 TOOL_ROOT = PROJECT_ROOT / "vendor" / "mit-adobe-fivek-dataset"
-DATASET_ROOT = Path(os.path.expanduser("~/autohdr/fivek_dataset"))
+DATASET_ROOT = PROJECT_ROOT / "fivek_dataset"
 DATASET_DIR = DATASET_ROOT / "MITAboveFiveK"
 EXPERTS = ("c", "d")
 LIMIT = 220

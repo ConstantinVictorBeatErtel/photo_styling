@@ -9,12 +9,13 @@ import requests
 from PIL import Image
 
 
-DATASET_ROOT = Path.home() / "autohdr" / "fivek_dataset" / "MITAboveFiveK"
+PROJECT_ROOT = Path(__file__).resolve().parent
+DATASET_ROOT = PROJECT_ROOT / "fivek_dataset" / "MITAboveFiveK"
 TRAINING_JSON = DATASET_ROOT / "training.json"
 RAW_ROOT = DATASET_ROOT / "raw"
 EXPERT_C_ROOT = DATASET_ROOT / "processed" / "tiff16_c"
 EXPERT_D_ROOT = DATASET_ROOT / "processed" / "tiff16_d"
-OUTPUT_ROOT = Path.home() / "autohdr" / "data"
+OUTPUT_ROOT = PROJECT_ROOT / "data"
 IMAGE_SIZE = (512, 512)
 LIMIT = 220
 PROGRESS_EVERY = 20

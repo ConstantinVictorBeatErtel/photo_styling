@@ -16,7 +16,7 @@ from transformers import (
 )
 
 
-PROJECT_ROOT = Path("/Users/ConstiX/autohdr")
+PROJECT_ROOT = Path(__file__).resolve().parent
 EXPERT_C_DIR = PROJECT_ROOT / "data" / "expert_c" / "edited"
 EXPERT_D_DIR = PROJECT_ROOT / "data" / "expert_d" / "edited"
 STYLE_C_PATH = PROJECT_ROOT / "style_c.txt"
@@ -91,7 +91,7 @@ def get_style_prompt(captions: list[str], api_key: str) -> str:
                 {
                     "role": "user",
                     "content": (
-                        "These are auto-generated captions of real estate photos edited by a professional photographer:\n\n"
+                        "These are auto-generated captions of photos edited by a professional photographer:\n\n"
                         f"{caption_block}\n\n"
                         "Summarize their editing style in ONE sentence, as if describing how they edit to an AI photo editor.\n"
                         "Focus on: tone (warm/cool/neutral), brightness, contrast, color palette, and mood.\n"
