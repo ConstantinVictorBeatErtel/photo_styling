@@ -5,7 +5,7 @@ from pathlib import Path
 import streamlit as st
 
 
-ROOT = Path("/Users/ConstiX/autohdr")
+ROOT = Path(__file__).resolve().parent
 DEMO_GRID = ROOT / "demo_grid_flux.png"
 LOSS_CURVES = ROOT / "loss_curves.png"
 PROBE = ROOT / "demo_flux_probe.png"
@@ -67,4 +67,4 @@ for line in TALKING_POINTS:
         st.write(f"- {line.strip()}")
 
 st.subheader("Run Locally")
-st.code("cd ~/autohdr && source venv/bin/activate && streamlit run app.py", language="bash")
+st.code("streamlit run app.py", language="bash")

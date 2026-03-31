@@ -14,7 +14,7 @@ Three-stage pipeline:
 
 ## Results
 
-![Photo Styling Demo Grid](/Users/ConstiX/autohdr/demo_grid_flux.png)
+![Photo Styling Demo Grid](demo_grid_flux.png)
 
 The approved demo grid shows the same raw input edited three ways: a generic baseline, an Expert C style, and an Expert D style. Expert C produces brighter, crisper, more natural-looking outputs, while Expert D pushes the same images toward cooler, flatter, more muted tones. The columns remain visually tied to the same source photo, but the editing intent clearly changes by photographer.
 
@@ -30,7 +30,7 @@ Install dependencies:
 cd ~/autohdr
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-ml.txt
 ```
 
 Launch the Streamlit app:
@@ -40,3 +40,5 @@ streamlit run app.py
 ```
 
 Important note: the approved showcase grid in this repo was generated with FLUX.2 Pro via OpenRouter. The local SD 1.5 LoRA path remains in the repo as a prototype and research artifact, but the final demo image used for packaging is `demo_grid_flux.png`.
+
+For Streamlit Community Cloud, the repo uses a lightweight `requirements.txt` with only the app dependency. The full local ML stack lives in `requirements-ml.txt`.
