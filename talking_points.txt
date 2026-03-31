@@ -1,0 +1,5 @@
+We built a pipeline that learns each photographer's editing style from their own past work and then applies that style automatically to new photos.
+
+Under the hood, we use a diffusion model for image editing and distillation-style personalization so the final system can be both high quality and cost-efficient.
+
+At scale, the expensive model can act as the teacher, while each photographer gets a much smaller personalized adapter for cheaper inference.
