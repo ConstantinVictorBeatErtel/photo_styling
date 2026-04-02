@@ -1,29 +1,57 @@
-# Photo Styling Personalized Style Distillation
+# AutoHDR Personalized Photo Editing
 
-## Problem
+AutoHDR is a proof-of-concept personalized photo-editing system for real estate photography. Instead of applying one generic enhancement model to every user, it learns a photographer's preferred finish from their own portfolio and distills that behavior into a lightweight student adapter.
 
-Different photographers and editors often prefer different color, contrast, and tonal treatments, but many AI tools still apply the same generic enhancement to every image.
+## What This Repo Contains
 
-## Approach
+The current branch is the cleaned-up v2 pipeline:
 
-Three-stage pipeline:
+1. *Style discovery*  
+   BLIP-2 captions 50 edited images per photographer and DeepSeek V3.2 compresses those captions into one editing-style sentence.
+2. *Teacher generation*  
+   FLUX.1 Kontext [pro] acts as the high-quality teacher and creates personalized target edits while preserving scene structure.
+3. *Student distillation*  
+   An edit-conditioned InstructPix2Pix LoRA is trained on `(raw -> teacher)` pairs so the deployed model is small, local, and much cheaper to run than the teacher.
+4. *Demo app*  
+   A Streamlit app presents the product story, visual evidence, and local student inference for Candidate C and Candidate D.
 
-- *Style Discovery:* BLIP-2 auto-captions past edits. DeepSeek V3.2 summarizes those captions into one concise style sentence.
-- *Student Training:* Lightweight LoRA adapters are trained on real FiveK expert edits to capture style-specific visual tendencies.
-- *Demo Generation:* FLUX.2 Pro applies the discovered style directions to the same raw images, producing a clean side-by-side comparison.
+## Key Outputs
 
-## Results
+- `style_c.txt` and `style_d.txt`
+- `student_ip2p_v2/expert_c/` and `student_ip2p_v2/expert_d/`
+- `assets/demo_grid_student_v2_final_train.png`
+- `assets/teacher_preview_c_v2.png`
+- `assets/teacher_preview_d_v2.png`
+- `assets/loss_curves_v2.png`
 
-![Photo Styling Demo Grid](demo_grid_flux.png)
+## Visual Results
 
-The demo grid shows the same raw input edited three ways: a generic baseline, a Candidate C style, and a Candidate D style. Candidate C produces brighter, crisper, more natural-looking outputs, while Candidate D pushes the same images toward cooler, flatter, more muted tones. The columns remain visually tied to the same source photo, but the editing intent clearly changes by style.
+![Teacher vs Student](assets/demo_grid_student_v2_final_train.png)
 
-## Scale Path
+The distilled students preserve the teacher split clearly: Candidate C stays brighter, cleaner, and more neutral, while Candidate D stays cooler, darker, and more muted.
 
-With a larger edit history, style profiles can be inferred automatically from prior work, then paired with lightweight adapters or teacher-guided personalization workflows. No manual presets and no manual style authoring are required. Because compact adapters are tiny compared with full frontier image models, the longer-term production path can stay efficient even when a stronger teacher model is used for training or evaluation.
+![Candidate C Teacher Preview](assets/teacher_preview_c_v2.png)
 
-## Notes
+![Candidate D Teacher Preview](assets/teacher_preview_d_v2.png)
 
-The showcase grid in this repo was generated with FLUX.2 Pro via OpenRouter. The local SD 1.5 LoRA path remains in the repo as a research artifact, while the public demo focuses on the strongest visual comparison.
+## Run Locally
 
-For Streamlit Community Cloud, the app uses the lightweight `requirements.txt`. The full local ML stack lives in `requirements-ml.txt`.
+Create and activate the local environment:
+
+```bash
+cd ~/autohdr
+source venv/bin/activate
+```
+
+Run the Streamlit demo:
+
+```bash
+streamlit run app.py
+```
+
+The app can display the evidence assets immediately. If the local ML stack from `requirements-ml.txt` is installed and the student adapters exist, it can also run personalized student inference on uploaded images.
+
+## Dependency Notes
+
+- `requirements.txt` is the lightweight app-facing dependency file.
+- `requirements-ml.txt` is the full local ML stack used for teacher generation, student training, and local inference.

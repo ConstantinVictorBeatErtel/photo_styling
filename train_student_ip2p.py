@@ -9,15 +9,16 @@ import matplotlib.pyplot as plt
 import torch
 from PIL import Image
 from diffusers import AutoencoderKL, DDPMScheduler, UNet2DConditionModel
-from peft import LoraConfig, get_peft_model
+from peft import LoraConfig, PeftModel, get_peft_model
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from transformers import CLIPTextModel, CLIPTokenizer
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+ASSETS_ROOT = PROJECT_ROOT / "assets"
 MODEL_ID = "timbrooks/instruct-pix2pix"
-DEFAULT_TEACHER_ROOT = PROJECT_ROOT / "teacher_flux_v2"
+DEFAULT_TEACHER_ROOT = PROJECT_ROOT / "teacher_kontext_v2"
 DEFAULT_SAVE_ROOT = PROJECT_ROOT / "student_ip2p_v2"
 STYLE_FILES = {
     "c": PROJECT_ROOT / "style_c.txt",
@@ -91,7 +92,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--weight-decay", type=float, default=1e-2)
     parser.add_argument("--limit", type=int, default=200)
+    parser.add_argument("--checkpoint-interval", type=int, default=25)
     parser.add_argument("--disable-plot", action="store_true")
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Ignore existing checkpoints and train from scratch.",
+    )
     return parser.parse_args()
 
 
@@ -111,15 +118,25 @@ def load_frozen_components() -> tuple[CLIPTokenizer, CLIPTextModel, AutoencoderK
     return tokenizer, text_encoder, vae, scheduler
 
 
-def load_trainable_unet() -> UNet2DConditionModel:
-    unet = UNet2DConditionModel.from_pretrained(MODEL_ID, subfolder="unet").to(DEVICE)
-    lora_config = LoraConfig(
+def build_lora_config() -> LoraConfig:
+    return LoraConfig(
         r=4,
         lora_alpha=32,
         target_modules=["to_q", "to_v"],
         lora_dropout=0.1,
         bias="none",
     )
+
+
+def load_trainable_unet(checkpoint_dir: Path | None = None) -> UNet2DConditionModel:
+    unet = UNet2DConditionModel.from_pretrained(MODEL_ID, subfolder="unet").to(DEVICE)
+    if checkpoint_dir is not None:
+        unet = PeftModel.from_pretrained(unet, checkpoint_dir, is_trainable=True)
+        print(f"Loaded checkpoint from {checkpoint_dir}", flush=True)
+        unet.print_trainable_parameters()
+        return unet
+
+    lora_config = build_lora_config()
     unet = get_peft_model(unet, lora_config)
     unet.print_trainable_parameters()
     return unet
@@ -170,6 +187,42 @@ def save_metadata(
     (out_dir / "distillation_metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
 
+def save_checkpoint(
+    *,
+    unet: UNet2DConditionModel,
+    optimizer: torch.optim.Optimizer,
+    out_dir: Path,
+    expert: str,
+    completed_steps: int,
+    total_steps: int,
+    losses: list[float],
+) -> None:
+    checkpoints_dir = out_dir / "checkpoints"
+    checkpoints_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_dir = checkpoints_dir / f"step_{completed_steps:04d}"
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    unet.save_pretrained(checkpoint_dir)
+
+    state = {
+        "expert": expert,
+        "completed_steps": completed_steps,
+        "total_steps": total_steps,
+        "losses": losses,
+        "optimizer_state_dict": optimizer.state_dict(),
+        "checkpoint_dir": str(checkpoint_dir),
+        "saved_at": time.time(),
+    }
+    torch.save(state, out_dir / "latest_training_state.pt")
+    print(f"Saved checkpoint for expert {expert.upper()} at step {completed_steps}", flush=True)
+
+
+def load_resume_state(out_dir: Path) -> dict | None:
+    state_path = out_dir / "latest_training_state.pt"
+    if not state_path.exists():
+        return None
+    return torch.load(state_path, map_location="cpu")
+
+
 def train_one_expert(
     *,
     expert: str,
@@ -185,6 +238,8 @@ def train_one_expert(
     teacher_root: Path,
     save_root: Path,
     limit: int | None,
+    checkpoint_interval: int,
+    fresh: bool,
 ) -> list[float]:
     style = STYLE_FILES[expert].read_text(encoding="utf-8").strip()
     prompt = build_student_prompt(style)
@@ -197,25 +252,40 @@ def train_one_expert(
 
     out_dir = save_root / f"expert_{expert}"
     out_dir.mkdir(parents=True, exist_ok=True)
+    resume_state = None if fresh else load_resume_state(out_dir)
 
     print(f"\n=== Training student for expert {expert.upper()} ===", flush=True)
     print(f"Matched teacher pairs: {len(dataset)}", flush=True)
     print(f"Prompt: {prompt}", flush=True)
 
-    unet = load_trainable_unet()
+    checkpoint_dir = None
+    completed_steps = 0
+    losses: list[float] = []
+    if resume_state is not None:
+        completed_steps = int(resume_state.get("completed_steps", 0))
+        checkpoint_dir_value = resume_state.get("checkpoint_dir")
+        checkpoint_dir = Path(checkpoint_dir_value) if checkpoint_dir_value else None
+        losses = list(resume_state.get("losses", []))
+        if completed_steps >= steps and (out_dir / "adapter_model.safetensors").exists():
+            print(f"Expert {expert.upper()} already finished at step {completed_steps}, skipping.", flush=True)
+            return losses
+
+    unet = load_trainable_unet(checkpoint_dir=checkpoint_dir)
     optimizer = torch.optim.AdamW(
         [parameter for parameter in unet.parameters() if parameter.requires_grad],
         lr=learning_rate,
         weight_decay=weight_decay,
     )
+    if resume_state is not None and "optimizer_state_dict" in resume_state:
+        optimizer.load_state_dict(resume_state["optimizer_state_dict"])
+        print(f"Resuming expert {expert.upper()} from step {completed_steps}", flush=True)
 
-    losses: list[float] = []
     data_iter = iter(loader)
     optimizer.zero_grad(set_to_none=True)
     start_time = time.time()
     unet.train()
 
-    for step in range(steps):
+    for step in range(completed_steps, steps):
         try:
             batch = next(data_iter)
         except StopIteration:
@@ -269,7 +339,27 @@ def train_one_expert(
                 flush=True,
             )
 
+        if (step + 1) % checkpoint_interval == 0 and (step + 1) < steps:
+            save_checkpoint(
+                unet=unet,
+                optimizer=optimizer,
+                out_dir=out_dir,
+                expert=expert,
+                completed_steps=step + 1,
+                total_steps=steps,
+                losses=losses,
+            )
+
     unet.save_pretrained(out_dir)
+    save_checkpoint(
+        unet=unet,
+        optimizer=optimizer,
+        out_dir=out_dir,
+        expert=expert,
+        completed_steps=steps,
+        total_steps=steps,
+        losses=losses,
+    )
     save_metadata(
         out_dir,
         expert=expert,
@@ -325,10 +415,13 @@ def main() -> None:
             teacher_root=args.teacher_root,
             save_root=args.save_root,
             limit=args.limit,
+            checkpoint_interval=args.checkpoint_interval,
+            fresh=args.fresh,
         )
 
     if not args.disable_plot:
-        save_loss_plot(losses_by_expert, PROJECT_ROOT / "loss_curves_v2.png")
+        ASSETS_ROOT.mkdir(parents=True, exist_ok=True)
+        save_loss_plot(losses_by_expert, ASSETS_ROOT / "loss_curves_v2.png")
 
 
 if __name__ == "__main__":

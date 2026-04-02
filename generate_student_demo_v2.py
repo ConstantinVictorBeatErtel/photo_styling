@@ -11,9 +11,10 @@ from PIL import Image
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+ASSETS_ROOT = PROJECT_ROOT / "assets"
 MODEL_ID = "timbrooks/instruct-pix2pix"
 DEFAULT_STUDENT_ROOT = PROJECT_ROOT / "student_ip2p_v2"
-DEFAULT_TEACHER_ROOT = PROJECT_ROOT / "teacher_flux_v2"
+DEFAULT_TEACHER_ROOT = PROJECT_ROOT / "teacher_kontext_v2"
 
 
 def get_device() -> str:
@@ -42,10 +43,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--student-root", type=Path, default=DEFAULT_STUDENT_ROOT)
     parser.add_argument("--teacher-root", type=Path, default=DEFAULT_TEACHER_ROOT)
     parser.add_argument("--count", type=int, default=5)
+    parser.add_argument(
+        "--start-index",
+        type=int,
+        default=200,
+        help="0-based start index into the sorted raw filenames. Use 0 for the first training image.",
+    )
+    parser.add_argument(
+        "--filenames",
+        nargs="+",
+        default=None,
+        help="Optional explicit filenames to render instead of using start-index/count.",
+    )
     parser.add_argument("--steps", type=int, default=30)
     parser.add_argument("--guidance-scale", type=float, default=7.5)
     parser.add_argument("--image-guidance-scale", type=float, default=2.0)
-    parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "demo_grid_student_v2.png")
+    parser.add_argument("--output", type=Path, default=ASSETS_ROOT / "demo_grid_student_v2_final_train.png")
     return parser.parse_args()
 
 
@@ -101,9 +114,18 @@ def maybe_load_teacher_outputs(teacher_root: Path, filenames: list[str]) -> tupl
 
 def main() -> None:
     args = parse_args()
+    args.output.parent.mkdir(parents=True, exist_ok=True)
     style_c = (PROJECT_ROOT / "style_c.txt").read_text(encoding="utf-8").strip()
     style_d = (PROJECT_ROOT / "style_d.txt").read_text(encoding="utf-8").strip()
-    test_files = sorted((PROJECT_ROOT / "data" / "expert_c" / "raw").glob("*.jpg"))[200 : 200 + args.count]
+    all_raw_files = sorted((PROJECT_ROOT / "data" / "expert_c" / "raw").glob("*.jpg"))
+    if args.filenames:
+        requested = set(args.filenames)
+        test_files = [path for path in all_raw_files if path.name in requested]
+        if len(test_files) != len(requested):
+            missing = sorted(requested - {path.name for path in test_files})
+            raise FileNotFoundError(f"Missing requested filenames: {missing}")
+    else:
+        test_files = all_raw_files[args.start_index : args.start_index + args.count]
     filenames = [path.name for path in test_files]
 
     print("Loading baseline pipeline...", flush=True)

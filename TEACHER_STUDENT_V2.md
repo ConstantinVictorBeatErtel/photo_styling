@@ -2,7 +2,7 @@
 
 This branch adds a cleaner distillation path:
 
-1. `FLUX.2 Pro` acts as the **teacher** and generates personalized edits from raw inputs.
+1. `FLUX.1 Kontext [pro]` acts as the **teacher** and generates personalized edits from raw inputs.
 2. `InstructPix2Pix + LoRA` acts as the **student** and learns the raw-to-teacher edit mapping.
 3. The student can then be run locally at lower cost than the teacher model.
 
@@ -17,10 +17,10 @@ That makes the training problem match the actual goal: preserve the source scene
 
 ## Files
 
-- `flux_openrouter.py`
-  Shared FLUX.2 Pro helper functions for OpenRouter image editing.
-- `generate_teacher_flux_v2.py`
-  Generates teacher outputs from raw inputs into `teacher_flux_v2/expert_c` and `teacher_flux_v2/expert_d`.
+- `bfl_kontext.py`
+  Shared FLUX.1 Kontext helper functions for direct BFL image editing.
+- `generate_teacher_kontext_v2.py`
+  Generates teacher outputs from raw inputs into `teacher_kontext_v2/expert_c` and `teacher_kontext_v2/expert_d`.
 - `train_student_ip2p.py`
   Trains edit-conditioned student LoRAs on `(raw -> teacher)` pairs using `timbrooks/instruct-pix2pix`.
 - `generate_student_demo_v2.py`
@@ -33,7 +33,7 @@ Generate the teacher dataset:
 ```bash
 cd ~/autohdr
 source venv/bin/activate
-caffeinate -i python generate_teacher_flux_v2.py --expert both --limit 200
+caffeinate -i python generate_teacher_kontext_v2.py --expert both --limit 200
 ```
 
 Train the student adapters:
@@ -50,15 +50,18 @@ python generate_student_demo_v2.py
 
 ## Outputs
 
-- `teacher_flux_v2/expert_c/*.jpg`
-- `teacher_flux_v2/expert_d/*.jpg`
+- `teacher_kontext_v2/expert_c/*.jpg`
+- `teacher_kontext_v2/expert_d/*.jpg`
 - `student_ip2p_v2/expert_c/`
 - `student_ip2p_v2/expert_d/`
-- `loss_curves_v2.png`
-- `demo_grid_student_v2.png`
+- `assets/loss_curves_v2.png`
+- `assets/demo_grid_student_v2_final_train.png`
+- `assets/teacher_preview_c_v2.png`
+- `assets/teacher_preview_d_v2.png`
 
 ## Practical Notes
 
-- Teacher generation is the expensive step because it calls FLUX.2 Pro through OpenRouter.
+- Teacher generation is the expensive step because it calls FLUX.1 Kontext [pro] through the direct BFL API.
 - Student training is the cheaper path that preserves the distillation story.
+- The student trainer now checkpoints automatically so a crash or sleep interruption does not wipe out a long local run.
 - If you want teacher outputs for the held-out test images too, raise the teacher generation limit above `200`.

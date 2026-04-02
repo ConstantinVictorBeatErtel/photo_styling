@@ -8,20 +8,21 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from PIL import Image
 
-from flux_openrouter import build_teacher_edit_prompt, edit_image_with_flux, load_openrouter_api_key
+from bfl_kontext import KontextModeratedError, KontextRequestError, edit_image_with_kontext, load_bfl_api_key
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DATA_ROOT = PROJECT_ROOT / "data"
+ASSETS_ROOT = PROJECT_ROOT / "assets"
 STYLE_FILES = {
     "c": PROJECT_ROOT / "style_c.txt",
     "d": PROJECT_ROOT / "style_d.txt",
 }
-DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "teacher_flux_v2"
+DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "teacher_kontext_v2"
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate FLUX.2 Pro teacher outputs for v2 distillation.")
+    parser = argparse.ArgumentParser(description="Generate FLUX.1 Kontext teacher outputs for v2 distillation.")
     parser.add_argument("--expert", choices=["c", "d", "both"], default="both")
     parser.add_argument("--limit", type=int, default=200, help="How many sorted raw images to process per expert.")
     parser.add_argument("--start", type=int, default=1, help="1-based start index into the sorted raw files.")
@@ -34,6 +35,15 @@ def parse_args() -> argparse.Namespace:
 
 def load_style(expert: str) -> str:
     return STYLE_FILES[expert].read_text(encoding="utf-8").strip()
+
+
+def build_teacher_edit_prompt(style: str) -> str:
+    return (
+        "Keep the exact same scene, subject, framing, perspective, and objects. "
+        "Do not add, remove, or replace anything in the image. "
+        "Only change color, tone, white balance, brightness, contrast, and overall mood to match this style: "
+        f"{style}"
+    )
 
 
 def list_raw_files(expert: str, start: int, limit: int) -> list[Path]:
@@ -94,7 +104,9 @@ def generate_for_expert(
     teacher_dir = output_root / f"expert_{expert}"
     teacher_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = output_root / f"expert_{expert}_manifest.json"
+    skipped_path = output_root / f"expert_{expert}_skipped.json"
     manifest_records: list[dict[str, str | int]] = []
+    skipped_records: list[dict[str, str]] = []
 
     print(f"\n=== Generating teacher outputs for expert {expert.upper()} ===", flush=True)
     print(f"Output directory: {teacher_dir}", flush=True)
@@ -106,7 +118,29 @@ def generate_for_expert(
             print(f"  [{index}/{len(raw_files)}] {raw_path.name} already exists, skipping", flush=True)
         else:
             print(f"  [{index}/{len(raw_files)}] editing {raw_path.name}", flush=True)
-            image = edit_image_with_flux(api_key, prompt, image_path=raw_path)
+            try:
+                image = edit_image_with_kontext(api_key, prompt=prompt, image_path=raw_path)
+            except KontextModeratedError as exc:
+                print(f"    Skipping {raw_path.name}: content moderated", flush=True)
+                skipped_records.append(
+                    {
+                        "filename": raw_path.name,
+                        "reason": "content_moderated",
+                        "detail": str(exc),
+                    }
+                )
+                continue
+            except (KontextRequestError, TimeoutError) as exc:
+                print(f"    Skipping {raw_path.name}: request failed after retries ({exc})", flush=True)
+                skipped_records.append(
+                    {
+                        "filename": raw_path.name,
+                        "reason": "request_failed",
+                        "detail": str(exc),
+                    }
+                )
+                continue
+
             raw_size = Image.open(raw_path).convert("RGB").size
             if image.size != raw_size:
                 image = image.resize(raw_size, Image.LANCZOS)
@@ -124,15 +158,21 @@ def generate_for_expert(
         )
 
     manifest_path.write_text(json.dumps(manifest_records, indent=2), encoding="utf-8")
+    skipped_path.write_text(json.dumps(skipped_records, indent=2), encoding="utf-8")
     preview_path = output_root / f"expert_{expert}_preview.png"
+    assets_preview_path = ASSETS_ROOT / f"teacher_preview_{expert}_v2.png"
+    ASSETS_ROOT.mkdir(parents=True, exist_ok=True)
     save_preview_grid(raw_files[:preview_count], teacher_dir, preview_path)
+    save_preview_grid(raw_files[:preview_count], teacher_dir, assets_preview_path)
     print(f"Saved manifest to {manifest_path}", flush=True)
+    print(f"Saved skipped log to {skipped_path}", flush=True)
     print(f"Saved preview grid to {preview_path}", flush=True)
+    print(f"Saved app preview grid to {assets_preview_path}", flush=True)
 
 
 def main() -> None:
     args = parse_args()
-    api_key = load_openrouter_api_key()
+    api_key = load_bfl_api_key()
     experts = ["c", "d"] if args.expert == "both" else [args.expert]
 
     for expert in experts:
