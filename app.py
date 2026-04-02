@@ -11,6 +11,7 @@ from PIL import Image, ImageOps
 
 ROOT = Path(__file__).resolve().parent
 ASSETS = ROOT / "assets"
+SAMPLE_ASSETS = ASSETS / "samples"
 DATA_ROOT = ROOT / "data"
 STYLE_C = (ROOT / "style_c.txt").read_text(encoding="utf-8").strip()
 STYLE_D = (ROOT / "style_d.txt").read_text(encoding="utf-8").strip()
@@ -33,13 +34,10 @@ def show_image(path: Path, caption: str | None = None) -> None:
         st.warning(f"Missing asset: {path.name}")
 
 
-def count_files(path: Path, suffix: str) -> int:
-    if not path.exists():
-        return 0
-    return len(list(path.glob(f"*.{suffix}")))
-
-
 def sample_images() -> list[Path]:
+    asset_files = sorted(SAMPLE_ASSETS.glob("*.jpg"))
+    if asset_files:
+        return asset_files
     sample_dir = DATA_ROOT / "expert_c" / "raw"
     if not sample_dir.exists():
         return []
@@ -67,9 +65,9 @@ def prepare_input_image(image: Image.Image) -> Image.Image:
 
 def runtime_error() -> str | None:
     if not (STUDENT_ROOT / "expert_c" / "adapter_model.safetensors").exists():
-        return "Student adapter for Candidate C is missing."
+        return "Local student adapters are not available in this deployment."
     if not (STUDENT_ROOT / "expert_d" / "adapter_model.safetensors").exists():
-        return "Student adapter for Candidate D is missing."
+        return "Local student adapters are not available in this deployment."
     try:
         import torch  # noqa: F401
         import diffusers  # noqa: F401
@@ -333,17 +331,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.caption("A personalized photo-editing system that learns a photographer's signature look and deploys it as a compact student model.")
-
-teacher_total = count_files(ROOT / "teacher_kontext_v2" / "expert_c", "jpg") + count_files(
-    ROOT / "teacher_kontext_v2" / "expert_d", "jpg"
-)
-metric_cols = st.columns(4)
-metric_cols[0].metric("Portfolio Pairs Used", "220")
-metric_cols[1].metric("Teacher Outputs", str(teacher_total))
-metric_cols[2].metric("Student Adapters", "2")
-metric_cols[3].metric("Inference Target", "Photographer-specific")
-
 st.markdown("### Product")
 product_cols = st.columns(3)
 product_cards = [
@@ -391,6 +378,19 @@ with explain_cols[1]:
         <br><br>
         The result is the deployment-friendly piece at the bottom of the diagram: one personalized LoRA per
         photographer that can style a new raw photo without re-running the expensive teacher for every request.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <div class="style-note" style="margin-top: 1rem;">
+            <div class="mini-label">Model Summary</div>
+            <h4>Teacher for quality, student for deployment</h4>
+            <p>
+                The teacher is FLUX.1 Kontext [pro]. The deployed model is an InstructPix2Pix LoRA specialized to one
+                photographer's style, which keeps the serving footprint much smaller than the teacher.
+            </p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -456,9 +456,6 @@ with studio_left:
     guidance_scale = st.slider("Text guidance", min_value=5.0, max_value=9.0, value=7.5, step=0.5)
     image_guidance_scale = st.slider("Image guidance", min_value=1.0, max_value=2.5, value=2.0, step=0.25)
 
-    if runtime_issue:
-        st.warning(runtime_issue)
-
     run_clicked = st.button(
         "Generate personalized edit",
         type="primary",
@@ -479,6 +476,9 @@ with studio_right:
         st.image(preview_image, caption=f"{source_caption} resized to 512x512 for student inference", use_container_width=True)
     else:
         st.info("Choose a sample or upload an image to preview the student model.")
+
+    if runtime_issue:
+        st.caption("Live generation is only enabled in the full local setup. This hosted page still includes built-in sample inputs and result comparisons.")
 
 if run_clicked and source_image is not None:
     prepared = prepare_input_image(source_image)
@@ -519,10 +519,3 @@ if "latest_results" in st.session_state:
                 st.caption(STYLE_D)
             elif label != "Raw input":
                 st.caption(f"{elapsed:.1f}s")
-
-st.markdown("### Model summary")
-st.write(
-    "The teacher is FLUX.1 Kontext [pro]. The deployed student is an InstructPix2Pix LoRA specialized to one "
-    "photographer's style. That is the core product claim: each photographer gets a compact adapter that keeps "
-    "their look consistent without needing a giant personalized model in production."
-)
