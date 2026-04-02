@@ -1,0 +1,59 @@
+<svg width="1400" height="1260" viewBox="0 0 1400 1260" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1400" height="1260" rx="36" fill="#F7F7F2"/>
+  <path d="M72 1042H1328" stroke="#9AA8A2" stroke-width="2" stroke-dasharray="10 10"/>
+  <text x="1200" y="1028" font-family="Arial, sans-serif" font-size="18" fill="#6E7D77">deployment</text>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10Z" fill="#7F817C"/>
+    </marker>
+  </defs>
+
+  <rect x="380" y="60" width="640" height="128" rx="20" fill="#DCEFE9" stroke="#0F6D60" stroke-width="2"/>
+  <text x="700" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-size="36" font-weight="700" fill="#0B544A">Photographer portfolio</text>
+  <text x="700" y="148" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" fill="#157062">220 raw + expert-edited pairs</text>
+
+  <rect x="78" y="274" width="348" height="112" rx="20" fill="#E4E2FB" stroke="#4C49B2" stroke-width="2"/>
+  <text x="252" y="324" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#423F9E">BLIP-2</text>
+  <text x="252" y="361" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#4F4BBB">50-image captioning</text>
+
+  <rect x="978" y="274" width="348" height="112" rx="20" fill="#E4E2FB" stroke="#4C49B2" stroke-width="2"/>
+  <text x="1152" y="324" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#423F9E">FLUX Kontext</text>
+  <text x="1152" y="361" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#4F4BBB">Content-preserving teacher</text>
+
+  <rect x="80" y="494" width="348" height="112" rx="20" fill="#F7ECD9" stroke="#BB7A12" stroke-width="2"/>
+  <text x="254" y="545" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#7D4600">Style sentence</text>
+  <text x="254" y="580" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#8E5310">via DeepSeek V3.2</text>
+
+  <rect x="978" y="494" width="348" height="112" rx="20" fill="#DCEFE9" stroke="#0F6D60" stroke-width="2"/>
+  <text x="1152" y="545" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#0B544A">Teacher edits</text>
+  <text x="1152" y="580" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#157062">200 teacher outputs</text>
+
+  <rect x="424" y="742" width="552" height="116" rx="22" fill="#E4E2FB" stroke="#4C49B2" stroke-width="2"/>
+  <text x="700" y="793" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#423F9E">InstructPix2Pix LoRA</text>
+  <text x="700" y="828" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#4F4BBB">500-step distillation training</text>
+
+  <rect x="456" y="920" width="488" height="112" rx="22" fill="#FBE8E1" stroke="#C96E43" stroke-width="2"/>
+  <text x="700" y="971" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#7C3917">Personalized LoRA</text>
+  <text x="700" y="1006" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#A14B22">One student per photographer</text>
+
+  <rect x="78" y="1096" width="300" height="92" rx="18" fill="#DCEFE9" stroke="#0F6D60" stroke-width="2"/>
+  <text x="228" y="1152" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#0B544A">New raw photo</text>
+
+  <rect x="550" y="1096" width="300" height="92" rx="18" fill="#FBE8E1" stroke="#C96E43" stroke-width="2"/>
+  <text x="700" y="1152" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#7C3917">LoRA model</text>
+
+  <rect x="1022" y="1096" width="300" height="92" rx="18" fill="#DCEFE9" stroke="#0F6D60" stroke-width="2"/>
+  <text x="1172" y="1152" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#0B544A">Styled output</text>
+
+  <path d="M571 188L252 264" stroke="#7F817C" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M830 188L1152 264" stroke="#7F817C" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M252 386V474" stroke="#7F817C" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M1152 386V474" stroke="#7F817C" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M344 606L572 730" stroke="#7F817C" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M1060 606L828 730" stroke="#7F817C" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M700 858V900" stroke="#7F817C" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M700 1032V1082" stroke="#7F817C" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M378 1142H532" stroke="#7F817C" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M850 1142H1004" stroke="#7F817C" stroke-width="4" marker-end="url(#arrow)"/>
+</svg>
