@@ -20,6 +20,7 @@ ASSETS_ROOT = PROJECT_ROOT / "assets"
 MODEL_ID = "timbrooks/instruct-pix2pix"
 DEFAULT_TEACHER_ROOT = PROJECT_ROOT / "teacher_kontext_v2"
 DEFAULT_SAVE_ROOT = PROJECT_ROOT / "student_ip2p_v2"
+DEFAULT_LOSS_OUTPUT = PROJECT_ROOT / "loss_curves_v2.png"
 STYLE_FILES = {
     "c": PROJECT_ROOT / "style_c.txt",
     "d": PROJECT_ROOT / "style_d.txt",
@@ -93,6 +94,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--weight-decay", type=float, default=1e-2)
     parser.add_argument("--limit", type=int, default=200)
     parser.add_argument("--checkpoint-interval", type=int, default=25)
+    parser.add_argument("--rank", type=int, default=4)
+    parser.add_argument("--lora-alpha", type=int, default=32)
+    parser.add_argument("--lora-dropout", type=float, default=0.1)
+    parser.add_argument("--loss-output", type=Path, default=DEFAULT_LOSS_OUTPUT)
     parser.add_argument("--disable-plot", action="store_true")
     parser.add_argument(
         "--fresh",
@@ -118,17 +123,23 @@ def load_frozen_components() -> tuple[CLIPTokenizer, CLIPTextModel, AutoencoderK
     return tokenizer, text_encoder, vae, scheduler
 
 
-def build_lora_config() -> LoraConfig:
+def build_lora_config(rank: int, lora_alpha: int, lora_dropout: float) -> LoraConfig:
     return LoraConfig(
-        r=4,
-        lora_alpha=32,
+        r=rank,
+        lora_alpha=lora_alpha,
         target_modules=["to_q", "to_v"],
-        lora_dropout=0.1,
+        lora_dropout=lora_dropout,
         bias="none",
     )
 
 
-def load_trainable_unet(checkpoint_dir: Path | None = None) -> UNet2DConditionModel:
+def load_trainable_unet(
+    checkpoint_dir: Path | None = None,
+    *,
+    rank: int,
+    lora_alpha: int,
+    lora_dropout: float,
+) -> UNet2DConditionModel:
     unet = UNet2DConditionModel.from_pretrained(MODEL_ID, subfolder="unet").to(DEVICE)
     if checkpoint_dir is not None:
         unet = PeftModel.from_pretrained(unet, checkpoint_dir, is_trainable=True)
@@ -136,7 +147,7 @@ def load_trainable_unet(checkpoint_dir: Path | None = None) -> UNet2DConditionMo
         unet.print_trainable_parameters()
         return unet
 
-    lora_config = build_lora_config()
+    lora_config = build_lora_config(rank, lora_alpha, lora_dropout)
     unet = get_peft_model(unet, lora_config)
     unet.print_trainable_parameters()
     return unet
@@ -239,6 +250,9 @@ def train_one_expert(
     save_root: Path,
     limit: int | None,
     checkpoint_interval: int,
+    rank: int,
+    lora_alpha: int,
+    lora_dropout: float,
     fresh: bool,
 ) -> list[float]:
     style = STYLE_FILES[expert].read_text(encoding="utf-8").strip()
@@ -270,7 +284,12 @@ def train_one_expert(
             print(f"Expert {expert.upper()} already finished at step {completed_steps}, skipping.", flush=True)
             return losses
 
-    unet = load_trainable_unet(checkpoint_dir=checkpoint_dir)
+    unet = load_trainable_unet(
+        checkpoint_dir=checkpoint_dir,
+        rank=rank,
+        lora_alpha=lora_alpha,
+        lora_dropout=lora_dropout,
+    )
     optimizer = torch.optim.AdamW(
         [parameter for parameter in unet.parameters() if parameter.requires_grad],
         lr=learning_rate,
@@ -434,12 +453,15 @@ def main() -> None:
             save_root=args.save_root,
             limit=args.limit,
             checkpoint_interval=args.checkpoint_interval,
+            rank=args.rank,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
             fresh=args.fresh,
         )
 
     if not args.disable_plot:
-        ASSETS_ROOT.mkdir(parents=True, exist_ok=True)
-        save_loss_plot(losses_by_expert, ASSETS_ROOT / "loss_curves_v2.png")
+        args.loss_output.parent.mkdir(parents=True, exist_ok=True)
+        save_loss_plot(losses_by_expert, args.loss_output)
 
 
 if __name__ == "__main__":

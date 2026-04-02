@@ -19,16 +19,17 @@ The current branch is the cleaned-up v2 pipeline:
 
 - `style_c.txt` and `style_d.txt`
 - `student_ip2p_v2/expert_c/` and `student_ip2p_v2/expert_d/`
-- `assets/demo_grid_student_v2_final_train.png`
+- `student_ip2p_v2_r8/expert_c/` and `student_ip2p_v2_r8/expert_d/`
+- `assets/demo_grid_student_v2_r8.png`
+- `assets/loss_curves_v2_r8.png`
 - `assets/teacher_preview_c_v2.png`
 - `assets/teacher_preview_d_v2.png`
-- `assets/loss_curves_v2.png`
 
 ## Visual Results
 
-![Teacher vs Student](assets/demo_grid_student_v2_final_train.png)
+![Teacher vs Student](assets/demo_grid_student_v2_r8.png)
 
-The distilled students preserve the teacher split clearly: Candidate C stays brighter, cleaner, and more neutral, while Candidate D stays cooler, darker, and more muted.
+The stronger `r=8`, `2000`-step students are the current best local run. Candidate C stays brighter, cleaner, and more neutral, while Candidate D stays cooler, darker, and more muted.
 
 ![Candidate C Teacher Preview](assets/teacher_preview_c_v2.png)
 

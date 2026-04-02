@@ -18,8 +18,8 @@ This is a personalized AI photo-editing proof of concept. The core idea is that 
 
 ## Canonical Visual Assets
 
-- `assets/demo_grid_student_v2_final_train.png`
+- `assets/demo_grid_student_v2_r8.png`
+- `assets/loss_curves_v2_r8.png`
 - `assets/teacher_preview_c_v2.png`
 - `assets/teacher_preview_d_v2.png`
-- `assets/loss_curves_v2.png`
 - `assets/pipeline_overview_v2.svg`

@@ -1,0 +1,9 @@
+{
+  "expert": "d",
+  "style": "Cool, desaturated tones with lifted shadows, subtle contrast, and a muted color palette that evokes a calm, documentary mood.",
+  "teacher_dir": "teacher_kontext_v2/expert_d",
+  "dataset_size": 198,
+  "steps": 2000,
+  "learning_rate": 0.0001,
+  "model_id": "timbrooks/instruct-pix2pix"
+}

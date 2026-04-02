@@ -22,5 +22,8 @@ review_*.png
 sanity_*.png
 step4_preview.png
 /loss_curves_v2.png
+/loss_curves_v2_r8.png
 /demo_grid_student_v2.png
 /demo_grid_student_v2_*.png
+student_ip2p_v2_r8/**/checkpoints/
+student_ip2p_v2_r8/**/latest_training_state.pt

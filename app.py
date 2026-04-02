@@ -17,10 +17,10 @@ STYLE_C = (ROOT / "style_c.txt").read_text(encoding="utf-8").strip()
 STYLE_D = (ROOT / "style_d.txt").read_text(encoding="utf-8").strip()
 
 PIPELINE_DIAGRAM = ASSETS / "pipeline_overview_v2.svg"
-TRAIN_GRID = ASSETS / "demo_grid_student_v2_final_train.png"
+TRAIN_GRID = ASSETS / "demo_grid_student_v2_r8.png"
 TEACHER_C_PREVIEW = ASSETS / "teacher_preview_c_v2.png"
 TEACHER_D_PREVIEW = ASSETS / "teacher_preview_d_v2.png"
-STUDENT_ROOT = ROOT / "student_ip2p_v2"
+STUDENT_ROOT = ROOT / "student_ip2p_v2_r8"
 PRECOMPUTED_ROOT = ASSETS / "precomputed"
 
 
@@ -419,8 +419,8 @@ with explain_cols[1]:
 
 st.markdown("### Example comparison")
 st.write(
-    "This single comparison view shows all six versions head to head: raw input, generic baseline, both teacher targets, "
-    "and both distilled student outputs."
+    "This updated comparison uses the stronger r8 students trained for 2000 steps. "
+    "It shows all six versions head to head: raw input, generic baseline, both teacher targets, and both distilled student outputs."
 )
 show_image(TRAIN_GRID, "Raw | Baseline | Teacher C | Student C | Teacher D | Student D")
 
@@ -478,9 +478,9 @@ with studio_left:
         ["Baseline", "Candidate C", "Candidate D"],
         default=["Baseline", "Candidate C", "Candidate D"],
     )
-    steps = st.slider("Inference steps", min_value=12, max_value=30, value=18, step=2)
-    guidance_scale = st.slider("Text guidance", min_value=5.0, max_value=9.0, value=7.5, step=0.5)
-    image_guidance_scale = st.slider("Image guidance", min_value=1.0, max_value=2.5, value=2.0, step=0.25)
+    steps = st.slider("Inference steps", min_value=20, max_value=60, value=50, step=5)
+    guidance_scale = st.slider("Text guidance", min_value=1.0, max_value=6.0, value=3.0, step=0.5)
+    image_guidance_scale = st.slider("Image guidance", min_value=0.5, max_value=2.0, value=1.0, step=0.25)
     precomputed_ready = bool(selected_sample and precomputed_available(selected_sample, selected_outputs))
 
     run_clicked = st.button(

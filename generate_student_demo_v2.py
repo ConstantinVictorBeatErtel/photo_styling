@@ -15,6 +15,7 @@ ASSETS_ROOT = PROJECT_ROOT / "assets"
 MODEL_ID = "timbrooks/instruct-pix2pix"
 DEFAULT_STUDENT_ROOT = PROJECT_ROOT / "student_ip2p_v2"
 DEFAULT_TEACHER_ROOT = PROJECT_ROOT / "teacher_kontext_v2"
+DEFAULT_OUTPUT = PROJECT_ROOT / "demo_grid_student_v2_r8.png"
 
 
 def get_device() -> str:
@@ -55,10 +56,10 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional explicit filenames to render instead of using start-index/count.",
     )
-    parser.add_argument("--steps", type=int, default=30)
-    parser.add_argument("--guidance-scale", type=float, default=7.5)
-    parser.add_argument("--image-guidance-scale", type=float, default=2.0)
-    parser.add_argument("--output", type=Path, default=ASSETS_ROOT / "demo_grid_student_v2_final_train.png")
+    parser.add_argument("--steps", type=int, default=50)
+    parser.add_argument("--guidance-scale", type=float, default=3.0)
+    parser.add_argument("--image-guidance-scale", type=float, default=1.0)
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     return parser.parse_args()
 
 

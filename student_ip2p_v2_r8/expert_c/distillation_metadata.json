@@ -1,0 +1,9 @@
+{
+  "expert": "c",
+  "style": "Crisp, true-to-life images with balanced exposure, natural color saturation, and a clear, neutral tone that emphasizes architectural and environmental details.",
+  "teacher_dir": "teacher_kontext_v2/expert_c",
+  "dataset_size": 199,
+  "steps": 2000,
+  "learning_rate": 0.0001,
+  "model_id": "timbrooks/instruct-pix2pix"
+}
