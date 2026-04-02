@@ -9,11 +9,11 @@ downloads/
 fivek_dataset/
 data/
 teacher_outputs/
+teacher_flux_v2/
+teacher_kontext_v2/
+student_ip2p_v2/
 demo_flux_outputs/
 vendor/
-
-memory.md
-current_state.md
 
 demo_grid.png
 demo_strength_test_*.png
@@ -21,4 +21,6 @@ demo_tuning_*.png
 review_*.png
 sanity_*.png
 step4_preview.png
-
+/loss_curves_v2.png
+/demo_grid_student_v2.png
+/demo_grid_student_v2_*.png
