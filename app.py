@@ -420,9 +420,10 @@ with explain_cols[1]:
 st.markdown("### Example comparison")
 st.write(
     "This updated comparison uses the stronger r8 students trained for 2000 steps. "
-    "It shows all six versions head to head: raw input, generic baseline, both teacher targets, and both distilled student outputs."
+    "It shows all six versions head to head: input image, generic baseline, both teacher targets, and both distilled student outputs. "
+    "The input panel can appear more saturated than the edits because it is our pipeline render of the source image, not a neutral quality reference."
 )
-show_image(TRAIN_GRID, "Raw | Baseline | Teacher C | Student C | Teacher D | Student D")
+show_image(TRAIN_GRID, "Input | Baseline | Teacher C | Student C | Teacher D | Student D")
 
 style_cols = st.columns(2)
 with style_cols[0]:
@@ -450,8 +451,9 @@ with style_cols[1]:
 
 st.markdown("### Try the student model")
 st.write(
-    "Raw is the untouched input image. Baseline is a generic non-personalized enhancement. "
-    "Candidate C and Candidate D are the personalized student outputs trained to follow two different styles."
+    "Input is the source image fed into every branch. Baseline is a separate generic edit from the base model. "
+    "Candidate C and Candidate D are personalized student edits applied directly to that same input, not on top of baseline. "
+    "If the input looks more saturated than the edited outputs, that does not mean the students failed; it usually means the source render is more vivid than the teacher targets the students were trained to match."
 )
 runtime_issue = runtime_error()
 studio_left, studio_right = st.columns([1.05, 0.95])
@@ -512,7 +514,7 @@ with studio_right:
 
 if run_clicked and source_image is not None and runtime_issue and source_mode == "Use sample" and selected_sample and precomputed_ready:
     prepared = prepare_input_image(source_image)
-    results = [("Raw input", prepared, 0.0)]
+    results = [("Input image", prepared, 0.0)]
     if "Baseline" in selected_outputs:
         results.append(("Baseline", Image.open(precomputed_result_path(selected_sample, "baseline")).convert("RGB"), 0.0))
     if "Candidate C" in selected_outputs:
@@ -523,7 +525,7 @@ if run_clicked and source_image is not None and runtime_issue and source_mode ==
 
 if run_clicked and source_image is not None and not runtime_issue:
     prepared = prepare_input_image(source_image)
-    results = [("Raw input", prepared, 0.0)]
+    results = [("Input image", prepared, 0.0)]
     order = []
     if "Baseline" in selected_outputs:
         order.append("baseline")
@@ -558,5 +560,5 @@ if "latest_results" in st.session_state:
                 st.caption(STYLE_C)
             elif label == "Candidate D":
                 st.caption(STYLE_D)
-            elif label != "Raw input":
+            elif label != "Input image":
                 st.caption(f"{elapsed:.1f}s")
