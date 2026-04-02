@@ -19,7 +19,6 @@ PIPELINE_DIAGRAM = ASSETS / "pipeline_overview_v2.svg"
 TRAIN_GRID = ASSETS / "demo_grid_student_v2_final_train.png"
 TEACHER_C_PREVIEW = ASSETS / "teacher_preview_c_v2.png"
 TEACHER_D_PREVIEW = ASSETS / "teacher_preview_d_v2.png"
-LOSS_CURVE = ASSETS / "loss_curves_v2.png"
 STUDENT_ROOT = ROOT / "student_ip2p_v2"
 
 
@@ -177,6 +176,10 @@ st.markdown(
             radial-gradient(circle at 0% 0%, rgba(193, 240, 227, 0.55) 0%, transparent 28%),
             radial-gradient(circle at 100% 0%, rgba(183, 215, 255, 0.48) 0%, transparent 30%),
             linear-gradient(180deg, #fbfaf6 0%, #eef3f7 100%);
+        color: #111111 !important;
+    }
+    .stApp, .stApp p, .stApp li, .stApp label, .stApp span, .stApp div, .stApp h1, .stApp h2, .stApp h3, .stApp h4 {
+        color: #111111;
     }
     .hero {
         padding: 1.6rem 1.8rem;
@@ -198,11 +201,11 @@ st.markdown(
         margin: 0;
         font-size: 3.15rem;
         line-height: 1.0;
-        color: #0f2d35;
+        color: #111111;
     }
     .hero p {
         margin-top: 0.9rem;
-        color: #2d4b55;
+        color: #111111;
         font-size: 1.07rem;
         max-width: 54rem;
     }
@@ -217,10 +220,10 @@ st.markdown(
     .glass-card h3 {
         margin-top: 0;
         margin-bottom: 0.5rem;
-        color: #173842;
+        color: #111111;
     }
     .glass-card p {
-        color: #33515b;
+        color: #111111;
         margin-bottom: 0;
         line-height: 1.55;
     }
@@ -236,7 +239,7 @@ st.markdown(
         font-weight: 700;
     }
     .section-copy {
-        color: #36515b;
+        color: #111111;
         font-size: 1rem;
         line-height: 1.65;
     }
@@ -249,12 +252,12 @@ st.markdown(
     }
     .style-note h4 {
         margin: 0 0 0.5rem 0;
-        color: #14343c;
+        color: #111111;
         font-size: 1.12rem;
     }
     .style-note p {
         margin: 0;
-        color: #36525c;
+        color: #111111;
         line-height: 1.6;
     }
     .mini-label {
@@ -270,7 +273,7 @@ st.markdown(
     .stMultiSelect > label,
     .stFileUploader > label,
     .stSlider > label {
-        color: #173842 !important;
+        color: #111111 !important;
         font-weight: 700 !important;
     }
     [data-testid="stWidgetLabel"] p,
@@ -278,32 +281,38 @@ st.markdown(
     .stRadio p,
     .stMarkdown p,
     .stCaption {
-        color: #284853 !important;
+        color: #111111 !important;
     }
     div[data-baseweb="select"] > div,
     div[data-baseweb="base-input"] > div,
     .stTextInput input,
     .stNumberInput input {
         background: rgba(255, 255, 255, 0.96) !important;
-        color: #173842 !important;
+        color: #111111 !important;
         border-color: rgba(20, 62, 74, 0.12) !important;
     }
     div[data-baseweb="tag"] {
         background: #dfecef !important;
-        color: #173842 !important;
+        color: #111111 !important;
     }
     [data-baseweb="select"] input {
-        color: #173842 !important;
+        color: #111111 !important;
     }
     [data-testid="stFileUploaderDropzone"] {
         background: rgba(255, 255, 255, 0.9) !important;
         border: 1px dashed rgba(20, 62, 74, 0.25) !important;
     }
     [data-testid="stFileUploaderDropzone"] * {
-        color: #173842 !important;
+        color: #111111 !important;
     }
     [data-testid="stStatusWidget"] {
         background: rgba(255, 255, 255, 0.88) !important;
+    }
+    .stButton button {
+        color: #111111 !important;
+    }
+    .stMetric label, .stMetric div {
+        color: #111111 !important;
     }
     </style>
     """,
@@ -387,10 +396,15 @@ with explain_cols[1]:
         unsafe_allow_html=True,
     )
 
-st.markdown("### Photographer styles")
+st.markdown("### Example comparison")
+st.write(
+    "This single comparison view shows all six versions head to head: raw input, generic baseline, both teacher targets, "
+    "and both distilled student outputs."
+)
+show_image(TRAIN_GRID, "Raw | Baseline | Teacher C | Student C | Teacher D | Student D")
+
 style_cols = st.columns(2)
 with style_cols[0]:
-    show_image(TEACHER_C_PREVIEW, "Candidate C teacher outputs")
     st.markdown(
         f"""
         <div class="style-note">
@@ -402,37 +416,12 @@ with style_cols[0]:
         unsafe_allow_html=True,
     )
 with style_cols[1]:
-    show_image(TEACHER_D_PREVIEW, "Candidate D teacher outputs")
     st.markdown(
         f"""
         <div class="style-note">
             <div class="mini-label">Candidate D</div>
             <h4>Moody, contrast-rich, cinematic finish</h4>
             <p>{STYLE_D}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-st.markdown("### Latest generated outputs")
-gallery_left, gallery_right = st.columns([1.55, 0.85])
-with gallery_left:
-    st.write(
-        "These are the latest training-range comparisons from the new teacher-student pipeline. "
-        "The key visual is that the student columns stay close to the teacher columns while remaining much cheaper to serve."
-    )
-    show_image(TRAIN_GRID, "Raw -> baseline -> teacher/student comparisons for both personalized styles")
-with gallery_right:
-    show_image(LOSS_CURVE, "Smoothed distillation loss over training")
-    st.markdown(
-        """
-        <div class="style-note">
-            <div class="mini-label">What this shows</div>
-            <h4>Why the student matters</h4>
-            <p>
-                The teacher establishes the aesthetic target. The student LoRA learns to imitate that target well enough
-                to ship a photographer-specific model that is lighter, cheaper, and easier to swap at inference time.
-            </p>
         </div>
         """,
         unsafe_allow_html=True,
