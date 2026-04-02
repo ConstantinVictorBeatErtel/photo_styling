@@ -1,6 +1,6 @@
 # Personalized Photo Editing
 
-This is a proof-of-concept personalized photo-editing system for real estate photography. Instead of applying one generic enhancement model to every user, it learns a photographer's preferred finish from their own portfolio and distills that behavior into a lightweight student adapter.
+This is a proof-of-concept personalized photo-editing system. Instead of applying one generic enhancement model to every user, it learns a photographer's preferred finish from their own portfolio and distills that behavior into a lightweight student adapter.
 
 ## What This Repo Contains
 

@@ -303,10 +303,27 @@ st.markdown(
     [data-testid="stFileUploaderDropzone"] * {
         color: #111111 !important;
     }
+    [data-testid="stFileUploaderDropzone"] button,
+    [data-testid="stBaseButton-secondary"] {
+        background: #d9ecef !important;
+        color: #111111 !important;
+        border: 1px solid rgba(20, 62, 74, 0.18) !important;
+    }
+    [data-testid="stFileUploaderDropzone"] button:hover,
+    [data-testid="stBaseButton-secondary"]:hover {
+        background: #c6e2e7 !important;
+        color: #111111 !important;
+    }
     [data-testid="stStatusWidget"] {
         background: rgba(255, 255, 255, 0.88) !important;
     }
     .stButton button {
+        background: #d9ecef !important;
+        color: #111111 !important;
+        border: 1px solid rgba(20, 62, 74, 0.18) !important;
+    }
+    .stButton button:hover {
+        background: #c6e2e7 !important;
         color: #111111 !important;
     }
     .stMetric label, .stMetric div {
@@ -331,18 +348,18 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown("### Product")
+st.markdown("### Model summary")
 product_cols = st.columns(3)
 product_cards = [
     (
-        "Why it matters",
-        "Real estate photographers do not want generic enhancement. They want an AI assistant that keeps composition intact while matching their own finish.",
+        "Why personalization matters",
+        "Photographers do not want one generic enhancement pass. They want an assistant that preserves the scene while matching their own finish.",
         ["Natural language", "Personalized"],
     ),
     (
-        "What the model does",
-        "A stronger teacher model creates style-consistent edits, then a smaller InstructPix2Pix LoRA learns that mapping so deployment is cheaper and easier to scale.",
-        ["Teacher-student", "LoRA"],
+        "How the system learns",
+        "BLIP-2 and DeepSeek condense past edits into a style sentence. FLUX.1 Kontext [pro] acts as the teacher, and an InstructPix2Pix LoRA learns that teacher behavior.",
+        ["Teacher-student", "FLUX + LoRA"],
     ),
     (
         "What gets deployed",
@@ -382,19 +399,6 @@ with explain_cols[1]:
         """,
         unsafe_allow_html=True,
     )
-    st.markdown(
-        """
-        <div class="style-note" style="margin-top: 1rem;">
-            <div class="mini-label">Model Summary</div>
-            <h4>Teacher for quality, student for deployment</h4>
-            <p>
-                The teacher is FLUX.1 Kontext [pro]. The deployed model is an InstructPix2Pix LoRA specialized to one
-                photographer's style, which keeps the serving footprint much smaller than the teacher.
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
 st.markdown("### Example comparison")
 st.write(
@@ -409,7 +413,7 @@ with style_cols[0]:
         f"""
         <div class="style-note">
             <div class="mini-label">Candidate C</div>
-            <h4>Bright, clean, premium real-estate finish</h4>
+            <h4>Bright, clean, premium finish</h4>
             <p>{STYLE_C}</p>
         </div>
         """,
