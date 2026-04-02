@@ -21,6 +21,7 @@ TRAIN_GRID = ASSETS / "demo_grid_student_v2_final_train.png"
 TEACHER_C_PREVIEW = ASSETS / "teacher_preview_c_v2.png"
 TEACHER_D_PREVIEW = ASSETS / "teacher_preview_d_v2.png"
 STUDENT_ROOT = ROOT / "student_ip2p_v2"
+PRECOMPUTED_ROOT = ASSETS / "precomputed"
 
 
 def image_exists(path: Path) -> bool:
@@ -35,7 +36,13 @@ def show_image(path: Path, caption: str | None = None) -> None:
 
 
 def sample_images() -> list[Path]:
-    asset_files = sorted(SAMPLE_ASSETS.glob("*.jpg"))
+    asset_files = [
+        path
+        for path in sorted(SAMPLE_ASSETS.glob("*.jpg"))
+        if (PRECOMPUTED_ROOT / f"{path.stem}_baseline.jpg").exists()
+        and (PRECOMPUTED_ROOT / f"{path.stem}_c.jpg").exists()
+        and (PRECOMPUTED_ROOT / f"{path.stem}_d.jpg").exists()
+    ]
     if asset_files:
         return asset_files
     sample_dir = DATA_ROOT / "expert_c" / "raw"
@@ -78,6 +85,16 @@ def runtime_error() -> str | None:
             f"Details: {exc}"
         )
     return None
+
+
+def precomputed_result_path(sample_name: str, kind: str) -> Path:
+    suffix_map = {"baseline": "baseline", "c": "c", "d": "d"}
+    return PRECOMPUTED_ROOT / f"{Path(sample_name).stem}_{suffix_map[kind]}.jpg"
+
+
+def precomputed_available(sample_name: str, selected_outputs: list[str]) -> bool:
+    kind_map = {"Baseline": "baseline", "Candidate C": "c", "Candidate D": "d"}
+    return all(precomputed_result_path(sample_name, kind_map[label]).exists() for label in selected_outputs)
 
 
 @st.cache_data(show_spinner=False)
@@ -437,11 +454,12 @@ studio_left, studio_right = st.columns([1.05, 0.95])
 
 sample_paths = sample_images()
 sample_map = {path.name: path for path in sample_paths}
+selected_sample = None
+precomputed_ready = False
 
 with studio_left:
     source_mode = st.radio("Image source", ["Use sample", "Upload image"], horizontal=True)
     uploaded_file = None
-    selected_sample = None
 
     if source_mode == "Upload image":
         uploaded_file = st.file_uploader("Upload a raw-style input photo", type=["jpg", "jpeg", "png"])
@@ -449,7 +467,7 @@ with studio_left:
         if sample_map:
             selected_sample = st.selectbox("Pick a prepared sample", list(sample_map.keys()))
         else:
-            st.info("No local sample images were found in data/expert_c/raw.")
+            st.info("No bundled sample images are available.")
 
     selected_outputs = st.multiselect(
         "Outputs to render",
@@ -459,11 +477,12 @@ with studio_left:
     steps = st.slider("Inference steps", min_value=12, max_value=30, value=18, step=2)
     guidance_scale = st.slider("Text guidance", min_value=5.0, max_value=9.0, value=7.5, step=0.5)
     image_guidance_scale = st.slider("Image guidance", min_value=1.0, max_value=2.5, value=2.0, step=0.25)
+    precomputed_ready = bool(selected_sample and precomputed_available(selected_sample, selected_outputs))
 
     run_clicked = st.button(
         "Generate personalized edit",
         type="primary",
-        disabled=bool(runtime_issue or not selected_outputs),
+        disabled=bool((runtime_issue and not precomputed_ready) or not selected_outputs),
     )
 
 with studio_right:
@@ -482,9 +501,23 @@ with studio_right:
         st.info("Choose a sample or upload an image to preview the student model.")
 
     if runtime_issue:
-        st.caption("Live generation is only enabled in the full local setup. This hosted page still includes built-in sample inputs and result comparisons.")
+        if precomputed_ready:
+            st.caption("This deployment uses a bundled sample result for the prepared sample. Live generation is available in the full local setup.")
+        else:
+            st.caption("Live generation is only enabled in the full local setup.")
 
-if run_clicked and source_image is not None:
+if run_clicked and source_image is not None and runtime_issue and source_mode == "Use sample" and selected_sample and precomputed_ready:
+    prepared = prepare_input_image(source_image)
+    results = [("Raw input", prepared, 0.0)]
+    if "Baseline" in selected_outputs:
+        results.append(("Baseline", Image.open(precomputed_result_path(selected_sample, "baseline")).convert("RGB"), 0.0))
+    if "Candidate C" in selected_outputs:
+        results.append(("Candidate C", Image.open(precomputed_result_path(selected_sample, "c")).convert("RGB"), 0.0))
+    if "Candidate D" in selected_outputs:
+        results.append(("Candidate D", Image.open(precomputed_result_path(selected_sample, "d")).convert("RGB"), 0.0))
+    st.session_state["latest_results"] = results
+
+if run_clicked and source_image is not None and not runtime_issue:
     prepared = prepare_input_image(source_image)
     results = [("Raw input", prepared, 0.0)]
     order = []
