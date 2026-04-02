@@ -167,7 +167,7 @@ def run_edit(kind: str, image: Image.Image, *, steps: int, guidance_scale: float
     return label, result, elapsed
 
 
-st.set_page_config(page_title="AutoHDR", layout="wide")
+st.set_page_config(page_title="Personalized Photo Editing", layout="wide")
 
 st.markdown(
     """
@@ -265,6 +265,46 @@ st.markdown(
         font-weight: 800;
         margin-bottom: 0.55rem;
     }
+    .stRadio > label,
+    .stSelectbox > label,
+    .stMultiSelect > label,
+    .stFileUploader > label,
+    .stSlider > label {
+        color: #173842 !important;
+        font-weight: 700 !important;
+    }
+    [data-testid="stWidgetLabel"] p,
+    [data-testid="stWidgetLabel"] span,
+    .stRadio p,
+    .stMarkdown p,
+    .stCaption {
+        color: #284853 !important;
+    }
+    div[data-baseweb="select"] > div,
+    div[data-baseweb="base-input"] > div,
+    .stTextInput input,
+    .stNumberInput input {
+        background: rgba(255, 255, 255, 0.96) !important;
+        color: #173842 !important;
+        border-color: rgba(20, 62, 74, 0.12) !important;
+    }
+    div[data-baseweb="tag"] {
+        background: #dfecef !important;
+        color: #173842 !important;
+    }
+    [data-baseweb="select"] input {
+        color: #173842 !important;
+    }
+    [data-testid="stFileUploaderDropzone"] {
+        background: rgba(255, 255, 255, 0.9) !important;
+        border: 1px dashed rgba(20, 62, 74, 0.25) !important;
+    }
+    [data-testid="stFileUploaderDropzone"] * {
+        color: #173842 !important;
+    }
+    [data-testid="stStatusWidget"] {
+        background: rgba(255, 255, 255, 0.88) !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -273,10 +313,10 @@ st.markdown(
 st.markdown(
     """
     <div class="hero">
-        <div class="eyebrow">AutoHDR Demo</div>
+        <div class="eyebrow">Personalized Photo Editing Demo</div>
         <h1>One model per photographer</h1>
         <p>
-            AutoHDR learns a photographer's look from their edit history, distills that behavior into a compact LoRA,
+            This system learns a photographer's look from their edit history, distills that behavior into a compact LoRA,
             and then applies that personalized style to new raw photos at much lower inference cost than the original teacher.
         </p>
     </div>
@@ -310,7 +350,7 @@ product_cards = [
     ),
     (
         "What gets deployed",
-        "Instead of serving a heavyweight teacher per photographer, AutoHDR serves a compact style adapter that reproduces the learned look on new photos.",
+        "Instead of serving a heavyweight teacher per photographer, the deployed system uses a compact style adapter that reproduces the learned look on new photos.",
         ["Lower cost", "Fast swap"],
     ),
 ]
@@ -383,7 +423,7 @@ with gallery_left:
     )
     show_image(TRAIN_GRID, "Raw -> baseline -> teacher/student comparisons for both personalized styles")
 with gallery_right:
-    show_image(LOSS_CURVE, "Distillation loss over training")
+    show_image(LOSS_CURVE, "Smoothed distillation loss over training")
     st.markdown(
         """
         <div class="style-note">
@@ -490,21 +530,6 @@ if "latest_results" in st.session_state:
                 st.caption(STYLE_D)
             elif label != "Raw input":
                 st.caption(f"{elapsed:.1f}s")
-
-st.markdown("### Evidence")
-evidence_tab, teacher_tab = st.tabs(["Teacher vs Student", "Teacher outputs"])
-with evidence_tab:
-    st.write(
-        "This comparison is the clearest distillation view: the stronger teacher sets the target, "
-        "and the smaller student tracks that look while keeping the scene stable."
-    )
-    show_image(TRAIN_GRID, "Training-range comparison: raw, baseline, teacher outputs, and student outputs")
-with teacher_tab:
-    preview_cols = st.columns(2)
-    with preview_cols[0]:
-        show_image(TEACHER_C_PREVIEW, "Teacher examples for Candidate C")
-    with preview_cols[1]:
-        show_image(TEACHER_D_PREVIEW, "Teacher examples for Candidate D")
 
 st.markdown("### Model summary")
 st.write(

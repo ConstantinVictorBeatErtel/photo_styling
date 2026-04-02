@@ -27,7 +27,7 @@
 
 ## App Notes
 
-- `app.py` is now a branded AutoHDR-style demo rather than a minimal lab page.
+- `app.py` is now a polished demo rather than a minimal lab page.
 - The app includes a short explanation of the product and model architecture.
 - The app includes a local student inference section and evidence sections for teacher previews and distillation results.
 

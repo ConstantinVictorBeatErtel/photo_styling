@@ -1,6 +1,6 @@
-# AutoHDR Summary
+# Project Summary
 
-AutoHDR is a personalized AI photo-editing proof of concept for real estate photographers. The core idea is that each photographer should get their own compact editing model instead of sharing one generic enhancement system.
+This is a personalized AI photo-editing proof of concept for real estate photographers. The core idea is that each photographer should get their own compact editing model instead of sharing one generic enhancement system.
 
 ## Current Pipeline
 

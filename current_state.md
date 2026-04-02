@@ -2,7 +2,7 @@
 
 ## Status
 
-The v2 teacher-student AutoHDR demo is in a usable state.
+The v2 teacher-student demo is in a usable state.
 
 - The Streamlit app has been updated to match the teacher-student pipeline.
 - The app can run local student inference when the ML environment and student adapters are available.

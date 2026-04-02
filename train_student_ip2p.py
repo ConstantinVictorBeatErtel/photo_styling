@@ -379,15 +379,33 @@ def train_one_expert(
 
 
 def save_loss_plot(losses_by_expert: dict[str, list[float]], out_path: Path) -> None:
+    def moving_average(values: list[float], window: int) -> list[float]:
+        if not values:
+            return []
+        if window <= 1 or len(values) < window:
+            return values[:]
+        averaged: list[float] = []
+        running = sum(values[:window])
+        averaged.extend([values[index] for index in range(window - 1)])
+        averaged.append(running / window)
+        for index in range(window, len(values)):
+            running += values[index] - values[index - window]
+            averaged.append(running / window)
+        return averaged
+
     fig, axes = plt.subplots(1, len(losses_by_expert), figsize=(6 * len(losses_by_expert), 4))
     if len(losses_by_expert) == 1:
         axes = [axes]
 
     for axis, (expert, losses) in zip(axes, losses_by_expert.items()):
-        axis.plot(losses)
+        smooth_losses = moving_average(losses, window=25)
+        axis.plot(losses, color="#afc4cb", alpha=0.28, linewidth=1.0, label="Raw loss")
+        axis.plot(smooth_losses, color="#184652", linewidth=2.6, label="25-step moving average")
         axis.set_title(f"Expert {expert.upper()} Loss")
         axis.set_xlabel("Step")
         axis.set_ylabel("MSE Loss")
+        axis.grid(alpha=0.18)
+        axis.legend(frameon=False)
 
     plt.tight_layout()
     plt.savefig(out_path, dpi=140, bbox_inches="tight")
