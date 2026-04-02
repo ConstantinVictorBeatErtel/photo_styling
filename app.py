@@ -449,6 +449,10 @@ with style_cols[1]:
     )
 
 st.markdown("### Try the student model")
+st.write(
+    "Raw is the untouched input image. Baseline is a generic non-personalized enhancement. "
+    "Candidate C and Candidate D are the personalized student outputs trained to follow two different styles."
+)
 runtime_issue = runtime_error()
 studio_left, studio_right = st.columns([1.05, 0.95])
 
@@ -472,7 +476,7 @@ with studio_left:
     selected_outputs = st.multiselect(
         "Outputs to render",
         ["Baseline", "Candidate C", "Candidate D"],
-        default=["Candidate C", "Candidate D"],
+        default=["Baseline", "Candidate C", "Candidate D"],
     )
     steps = st.slider("Inference steps", min_value=12, max_value=30, value=18, step=2)
     guidance_scale = st.slider("Text guidance", min_value=5.0, max_value=9.0, value=7.5, step=0.5)
@@ -496,7 +500,7 @@ with studio_right:
 
     if source_image is not None:
         preview_image = prepare_input_image(source_image)
-        st.image(preview_image, caption=f"{source_caption} resized to 512x512 for student inference", use_container_width=True)
+        st.image(preview_image, caption=f"{source_caption} resized to 512x512 for the comparison below", use_container_width=True)
     else:
         st.info("Choose a sample or upload an image to preview the student model.")
 
