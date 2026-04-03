@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import gc
-import json
 import time
 from pathlib import Path
 
@@ -48,13 +47,6 @@ def sample_images() -> list[Path]:
         return []
     files = sorted(sample_dir.glob("*.jpg"))
     return files[200:220] if len(files) >= 220 else files[: min(8, len(files))]
-
-
-def load_profile_metadata(expert: str) -> dict[str, object]:
-    metadata_path = STUDENT_ROOT / f"expert_{expert}" / "distillation_metadata.json"
-    if not metadata_path.exists():
-        return {}
-    return json.loads(metadata_path.read_text(encoding="utf-8"))
 
 
 def adapter_size_mb(expert: str) -> float | None:
@@ -371,15 +363,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-profile_c_metadata = load_profile_metadata("c")
-profile_d_metadata = load_profile_metadata("d")
-profile_c_pairs = int(profile_c_metadata.get("dataset_size", 0))
-profile_d_pairs = int(profile_d_metadata.get("dataset_size", 0))
-profile_c_steps = int(profile_c_metadata.get("steps", 0))
-profile_d_steps = int(profile_d_metadata.get("steps", 0))
 profile_c_size = adapter_size_mb("c")
 adapter_size_text = f"{profile_c_size:.2f} MB" if profile_c_size is not None else "a few megabytes"
-best_step_count = max(profile_c_steps, profile_d_steps) if max(profile_c_steps, profile_d_steps) > 0 else 2000
 
 st.markdown("### What this demo proves")
 product_cols = st.columns(4)
@@ -428,17 +413,6 @@ show_image(
     TRAIN_GRID,
     "Input | Generic edit | Bright-neutral teacher | Bright-neutral student | Cool-muted teacher | Cool-muted student",
 )
-
-facts_cols = st.columns(4)
-facts = [
-    ("Teacher model", "FLUX.1 Kontext [pro]"),
-    ("Student model", "InstructPix2Pix LoRA"),
-    ("Matched train pairs", f"{profile_c_pairs} bright-neutral, {profile_d_pairs} cool-muted"),
-    ("Current best run", f"r=8, {best_step_count} steps"),
-]
-for col, (label, value) in zip(facts_cols, facts):
-    with col:
-        st.metric(label, value)
 
 st.markdown("### Why this matters for listing workflows")
 listing_cols = st.columns(3)
