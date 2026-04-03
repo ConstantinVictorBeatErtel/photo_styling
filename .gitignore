@@ -14,6 +14,7 @@ teacher_kontext_v2/
 student_ip2p_v2/
 demo_flux_outputs/
 vendor/
+artifacts/
 
 demo_grid.png
 demo_strength_test_*.png

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import gc
+import json
 import time
-from io import BytesIO
 from pathlib import Path
 
 import streamlit as st
@@ -18,8 +18,6 @@ STYLE_D = (ROOT / "style_d.txt").read_text(encoding="utf-8").strip()
 
 PIPELINE_DIAGRAM = ASSETS / "pipeline_overview_v2.svg"
 TRAIN_GRID = ASSETS / "demo_grid_student_v2_r8.png"
-TEACHER_C_PREVIEW = ASSETS / "teacher_preview_c_v2.png"
-TEACHER_D_PREVIEW = ASSETS / "teacher_preview_d_v2.png"
 STUDENT_ROOT = ROOT / "student_ip2p_v2_r8"
 PRECOMPUTED_ROOT = ASSETS / "precomputed"
 
@@ -50,6 +48,20 @@ def sample_images() -> list[Path]:
         return []
     files = sorted(sample_dir.glob("*.jpg"))
     return files[200:220] if len(files) >= 220 else files[: min(8, len(files))]
+
+
+def load_profile_metadata(expert: str) -> dict[str, object]:
+    metadata_path = STUDENT_ROOT / f"expert_{expert}" / "distillation_metadata.json"
+    if not metadata_path.exists():
+        return {}
+    return json.loads(metadata_path.read_text(encoding="utf-8"))
+
+
+def adapter_size_mb(expert: str) -> float | None:
+    adapter_path = STUDENT_ROOT / f"expert_{expert}" / "adapter_model.safetensors"
+    if not adapter_path.exists():
+        return None
+    return adapter_path.stat().st_size / (1024 * 1024)
 
 
 def build_student_prompt(style: str) -> str:
@@ -93,16 +105,8 @@ def precomputed_result_path(sample_name: str, kind: str) -> Path:
 
 
 def precomputed_available(sample_name: str, selected_outputs: list[str]) -> bool:
-    kind_map = {"Baseline": "baseline", "Candidate C": "c", "Candidate D": "d"}
+    kind_map = {"Baseline": "baseline", "Bright neutral finish": "c", "Cool muted finish": "d"}
     return all(precomputed_result_path(sample_name, kind_map[label]).exists() for label in selected_outputs)
-
-
-@st.cache_data(show_spinner=False)
-def load_sample_preview(path: str) -> bytes:
-    image = Image.open(path).convert("RGB")
-    buffer = BytesIO()
-    image.save(buffer, format="JPEG", quality=92)
-    return buffer.getvalue()
 
 
 def load_pipe(kind: str, *, expert: str | None = None):
@@ -158,15 +162,15 @@ def run_edit(kind: str, image: Image.Image, *, steps: int, guidance_scale: float
     if kind == "baseline":
         prompt = build_baseline_prompt()
         pipe, device = load_pipe("baseline")
-        label = "Baseline"
+        label = "Generic edit"
     elif kind == "c":
         prompt = build_student_prompt(STYLE_C)
         pipe, device = load_pipe("student", expert="c")
-        label = "Candidate C"
+        label = "Bright neutral adapter"
     else:
         prompt = build_student_prompt(STYLE_D)
         pipe, device = load_pipe("student", expert="d")
-        label = "Candidate D"
+        label = "Cool muted adapter"
 
     start = time.perf_counter()
     result = pipe(
@@ -354,34 +358,51 @@ st.markdown(
 st.markdown(
     """
     <div class="hero">
-        <div class="eyebrow">Personalized Photo Editing Demo</div>
-        <h1>One model per photographer</h1>
+        <div class="eyebrow">Listing Photo Editing Demo</div>
+        <h1>One compact adapter per photographer</h1>
         <p>
-            This system learns a photographer's look from their edit history, distills that behavior into a compact LoRA,
-            and then applies that personalized style to new raw photos at much lower inference cost than the original teacher.
+            This prototype targets a real product constraint in listing photography: different photographers want different
+            finishes, but serving a heavyweight model per photographer is too expensive. The system learns each
+            photographer's finish from past edits, distills it into a compact LoRA, and applies that finish to new images
+            while preserving scene content.
         </p>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-st.markdown("### Model summary")
-product_cols = st.columns(3)
+profile_c_metadata = load_profile_metadata("c")
+profile_d_metadata = load_profile_metadata("d")
+profile_c_pairs = int(profile_c_metadata.get("dataset_size", 0))
+profile_d_pairs = int(profile_d_metadata.get("dataset_size", 0))
+profile_c_steps = int(profile_c_metadata.get("steps", 0))
+profile_d_steps = int(profile_d_metadata.get("steps", 0))
+profile_c_size = adapter_size_mb("c")
+adapter_size_text = f"{profile_c_size:.2f} MB" if profile_c_size is not None else "a few megabytes"
+best_step_count = max(profile_c_steps, profile_d_steps) if max(profile_c_steps, profile_d_steps) > 0 else 2000
+
+st.markdown("### What this demo proves")
+product_cols = st.columns(4)
 product_cards = [
     (
-        "Why personalization matters",
-        "Photographers do not want one generic enhancement pass. They want an assistant that preserves the scene while matching their own finish.",
-        ["Natural language", "Personalized"],
+        "Editing target",
+        "Preserve room geometry, framing, and objects while matching the photographer's finish.",
+        ["Scene preservation", "Photographer-specific"],
     ),
     (
-        "How the system learns",
-        "BLIP-2 and DeepSeek condense past edits into a style sentence. FLUX.1 Kontext [pro] acts as the teacher, and an InstructPix2Pix LoRA learns that teacher behavior.",
-        ["Teacher-student", "FLUX + LoRA"],
+        "Teacher",
+        "FLUX.1 Kontext [pro] supplies high-quality, content-preserving target edits for each profile.",
+        ["Teacher model", "High-quality targets"],
     ),
     (
-        "What gets deployed",
-        "Instead of serving a heavyweight teacher per photographer, the deployed system uses a compact style adapter that reproduces the learned look on new photos.",
-        ["Lower cost", "Fast swap"],
+        "Student",
+        "InstructPix2Pix LoRA is the deployable unit. The current best run uses rank 8 and 2000 training steps.",
+        ["Source-conditioned", "Compact adapter"],
+    ),
+    (
+        "Deployment fit",
+        f"Each tracked student adapter is about {adapter_size_text}. That is much easier to swap per photographer than a hosted teacher.",
+        ["~3 MB per profile", "Cheaper to serve"],
     ),
 ]
 for col, (title, text, pills) in zip(product_cols, product_cards):
@@ -398,40 +419,81 @@ for col, (title, text, pills) in zip(product_cols, product_cards):
             unsafe_allow_html=True,
         )
 
-st.markdown("### How personalization works")
+st.markdown("### Strongest evidence")
+st.write(
+    "This is the strongest tracked qualitative result in the repository. Success here means two things at once: "
+    "the scene stays intact, and the two profile-specific students separate into meaningfully different finishes."
+)
+show_image(
+    TRAIN_GRID,
+    "Input | Generic edit | Bright-neutral teacher | Bright-neutral student | Cool-muted teacher | Cool-muted student",
+)
+
+facts_cols = st.columns(4)
+facts = [
+    ("Teacher model", "FLUX.1 Kontext [pro]"),
+    ("Student model", "InstructPix2Pix LoRA"),
+    ("Matched train pairs", f"{profile_c_pairs} bright-neutral, {profile_d_pairs} cool-muted"),
+    ("Current best run", f"r=8, {best_step_count} steps"),
+]
+for col, (label, value) in zip(facts_cols, facts):
+    with col:
+        st.metric(label, value)
+
+st.markdown("### Why this matters for listing workflows")
+listing_cols = st.columns(3)
+listing_cards = [
+    (
+        "Consistency across listings",
+        "A generic enhancement model smooths everything toward the same look. A per-photographer adapter keeps one shoot consistent with that photographer's existing portfolio.",
+    ),
+    (
+        "Scene preservation",
+        "Listing edits should change tone and finish, not rearrange layout cues. The teacher-student setup is explicitly designed around preserving geometry and content.",
+    ),
+    (
+        "Deployment efficiency",
+        "Serving a compact student per photographer is more operationally realistic than routing every request through a heavyweight teacher model.",
+    ),
+]
+for col, (title, text) in zip(listing_cols, listing_cards):
+    with col:
+        st.markdown(
+            f"""
+            <div class="glass-card">
+                <h3>{title}</h3>
+                <p>{text}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+st.markdown("### How the system is built")
 explain_cols = st.columns([1.3, 1.0])
 with explain_cols[0]:
-    show_image(PIPELINE_DIAGRAM, "Pipeline overview: portfolio -> teacher/student distillation -> personalized deployment")
+    show_image(PIPELINE_DIAGRAM, "Portfolio history -> style discovery -> teacher edits -> per-photographer student adapter")
 with explain_cols[1]:
     st.markdown(
         """
         <div class="section-copy">
-        The product starts with a photographer's own portfolio. BLIP-2 captions past edits, DeepSeek compresses those
-        captions into a style sentence, and FLUX Kontext creates teacher edits that preserve scene content while shifting
-        tone and mood. A much smaller InstructPix2Pix LoRA is then distilled on those raw-to-teacher pairs.
+        BLIP-2 captions each photographer's historical edits. DeepSeek compresses those captions into a one-sentence
+        finish description. FLUX Kontext then generates teacher edits that preserve scene content while matching that
+        finish. Finally, a smaller InstructPix2Pix LoRA is distilled on those raw-to-teacher pairs.
         <br><br>
-        The result is the deployment-friendly piece at the bottom of the diagram: one personalized LoRA per
-        photographer that can style a new raw photo without re-running the expensive teacher for every request.
+        This is the important v2 correction over a style-only LoRA: the student is trained as a source-conditioned edit
+        model, not just a stylistic image generator.
         </div>
         """,
         unsafe_allow_html=True,
     )
-
-st.markdown("### Example comparison")
-st.write(
-    "This updated comparison uses the stronger r8 students trained for 2000 steps. "
-    "It shows all six versions head to head: input image, generic baseline, both teacher targets, and both distilled student outputs. "
-    "The input panel can appear more saturated than the edits because it is our pipeline render of the source image, not a neutral quality reference."
-)
-show_image(TRAIN_GRID, "Input | Baseline | Teacher C | Student C | Teacher D | Student D")
 
 style_cols = st.columns(2)
 with style_cols[0]:
     st.markdown(
         f"""
         <div class="style-note">
-            <div class="mini-label">Candidate C</div>
-            <h4>Bright, clean, premium finish</h4>
+            <div class="mini-label">Bright neutral finish</div>
+            <h4>Photographer-specific bright neutral adapter</h4>
             <p>{STYLE_C}</p>
         </div>
         """,
@@ -441,8 +503,8 @@ with style_cols[1]:
     st.markdown(
         f"""
         <div class="style-note">
-            <div class="mini-label">Candidate D</div>
-            <h4>Moody, contrast-rich, cinematic finish</h4>
+            <div class="mini-label">Cool muted finish</div>
+            <h4>Photographer-specific cool muted adapter</h4>
             <p>{STYLE_D}</p>
         </div>
         """,
@@ -451,9 +513,8 @@ with style_cols[1]:
 
 st.markdown("### Try the student model")
 st.write(
-    "Input is the source image fed into every branch. Baseline is a separate generic edit from the base model. "
-    "Candidate C and Candidate D are personalized student edits applied directly to that same input, not on top of baseline. "
-    "If the input looks more saturated than the edited outputs, that does not mean the students failed; it usually means the source render is more vivid than the teacher targets the students were trained to match."
+    "Use the prepared sample or upload your own image. The generic edit is the non-personalized baseline from the base model. "
+    "The bright-neutral and cool-muted adapters are separate photographer-specific students applied directly to the same source image, so the comparison is about finish control, not a multi-stage edit stack."
 )
 runtime_issue = runtime_error()
 studio_left, studio_right = st.columns([1.05, 0.95])
@@ -468,17 +529,21 @@ with studio_left:
     uploaded_file = None
 
     if source_mode == "Upload image":
-        uploaded_file = st.file_uploader("Upload a raw-style input photo", type=["jpg", "jpeg", "png"])
+        uploaded_file = st.file_uploader("Upload a source photo", type=["jpg", "jpeg", "png"])
     else:
         if sample_map:
-            selected_sample = st.selectbox("Pick a prepared sample", list(sample_map.keys()))
+            if len(sample_map) == 1:
+                selected_sample = next(iter(sample_map))
+                st.caption("Prepared demo sample selected.")
+            else:
+                selected_sample = st.selectbox("Prepared demo sample", list(sample_map.keys()))
         else:
             st.info("No bundled sample images are available.")
 
     selected_outputs = st.multiselect(
         "Outputs to render",
-        ["Baseline", "Candidate C", "Candidate D"],
-        default=["Baseline", "Candidate C", "Candidate D"],
+        ["Baseline", "Bright neutral finish", "Cool muted finish"],
+        default=["Baseline", "Bright neutral finish", "Cool muted finish"],
     )
     steps = st.slider("Inference steps", min_value=20, max_value=60, value=50, step=5)
     guidance_scale = st.slider("Text guidance", min_value=1.0, max_value=6.0, value=3.0, step=0.5)
@@ -502,25 +567,25 @@ with studio_right:
 
     if source_image is not None:
         preview_image = prepare_input_image(source_image)
-        st.image(preview_image, caption=f"{source_caption} resized to 512x512 for the comparison below", use_container_width=True)
+        st.image(preview_image, caption=f"{source_caption} resized to 512x512 for inference", use_container_width=True)
     else:
-        st.info("Choose a sample or upload an image to preview the student model.")
+        st.info("Choose the prepared sample or upload an image to run the profile adapters.")
 
     if runtime_issue:
         if precomputed_ready:
-            st.caption("This deployment uses a bundled sample result for the prepared sample. Live generation is available in the full local setup.")
+            st.caption("This deployment uses bundled outputs for the prepared sample. Full local inference is available in the complete ML setup.")
         else:
-            st.caption("Live generation is only enabled in the full local setup.")
+            st.caption("Live generation is only available in the full local setup.")
 
 if run_clicked and source_image is not None and runtime_issue and source_mode == "Use sample" and selected_sample and precomputed_ready:
     prepared = prepare_input_image(source_image)
     results = [("Input image", prepared, 0.0)]
     if "Baseline" in selected_outputs:
-        results.append(("Baseline", Image.open(precomputed_result_path(selected_sample, "baseline")).convert("RGB"), 0.0))
-    if "Candidate C" in selected_outputs:
-        results.append(("Candidate C", Image.open(precomputed_result_path(selected_sample, "c")).convert("RGB"), 0.0))
-    if "Candidate D" in selected_outputs:
-        results.append(("Candidate D", Image.open(precomputed_result_path(selected_sample, "d")).convert("RGB"), 0.0))
+        results.append(("Generic edit", Image.open(precomputed_result_path(selected_sample, "baseline")).convert("RGB"), 0.0))
+    if "Bright neutral finish" in selected_outputs:
+        results.append(("Bright neutral adapter", Image.open(precomputed_result_path(selected_sample, "c")).convert("RGB"), 0.0))
+    if "Cool muted finish" in selected_outputs:
+        results.append(("Cool muted adapter", Image.open(precomputed_result_path(selected_sample, "d")).convert("RGB"), 0.0))
     st.session_state["latest_results"] = results
 
 if run_clicked and source_image is not None and not runtime_issue:
@@ -529,15 +594,15 @@ if run_clicked and source_image is not None and not runtime_issue:
     order = []
     if "Baseline" in selected_outputs:
         order.append("baseline")
-    if "Candidate C" in selected_outputs:
+    if "Bright neutral finish" in selected_outputs:
         order.append("c")
-    if "Candidate D" in selected_outputs:
+    if "Cool muted finish" in selected_outputs:
         order.append("d")
 
     status = st.status("Running student inference...", expanded=True)
     for item in order:
         with status:
-            label = {"baseline": "Baseline", "c": "Candidate C", "d": "Candidate D"}[item]
+            label = {"baseline": "Generic edit", "c": "Bright neutral adapter", "d": "Cool muted adapter"}[item]
             st.write(f"Loading and generating {label}...")
         label, image, elapsed = run_edit(
             item,
@@ -552,13 +617,14 @@ if run_clicked and source_image is not None and not runtime_issue:
 
 if "latest_results" in st.session_state:
     st.markdown("#### Latest inference")
+    st.caption("The newest generated comparison appears here so the result is easy to review after each run.")
     result_cols = st.columns(len(st.session_state["latest_results"]))
     for col, (label, image, elapsed) in zip(result_cols, st.session_state["latest_results"]):
         with col:
             st.image(image, caption=label, use_container_width=True)
-            if label == "Candidate C":
+            if label == "Bright neutral adapter":
                 st.caption(STYLE_C)
-            elif label == "Candidate D":
+            elif label == "Cool muted adapter":
                 st.caption(STYLE_D)
             elif label != "Input image":
                 st.caption(f"{elapsed:.1f}s")
