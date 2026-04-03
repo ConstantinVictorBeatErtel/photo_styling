@@ -414,6 +414,30 @@ show_image(
     "Input | Generic edit | Bright-neutral teacher | Bright-neutral student | Cool-muted teacher | Cool-muted student",
 )
 
+style_cols = st.columns(2)
+with style_cols[0]:
+    st.markdown(
+        f"""
+        <div class="style-note">
+            <div class="mini-label">Bright neutral finish</div>
+            <h4>Photographer-specific bright neutral adapter</h4>
+            <p>{STYLE_C}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+with style_cols[1]:
+    st.markdown(
+        f"""
+        <div class="style-note">
+            <div class="mini-label">Cool muted finish</div>
+            <h4>Photographer-specific cool muted adapter</h4>
+            <p>{STYLE_D}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 st.markdown("### Why this matters for listing workflows")
 listing_cols = st.columns(3)
 listing_cards = [
@@ -460,31 +484,6 @@ with explain_cols[1]:
         """,
         unsafe_allow_html=True,
     )
-
-style_cols = st.columns(2)
-with style_cols[0]:
-    st.markdown(
-        f"""
-        <div class="style-note">
-            <div class="mini-label">Bright neutral finish</div>
-            <h4>Photographer-specific bright neutral adapter</h4>
-            <p>{STYLE_C}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-with style_cols[1]:
-    st.markdown(
-        f"""
-        <div class="style-note">
-            <div class="mini-label">Cool muted finish</div>
-            <h4>Photographer-specific cool muted adapter</h4>
-            <p>{STYLE_D}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
 st.markdown("### Try the student model")
 st.write(
     "Use the prepared sample or upload your own image. The generic edit is the non-personalized baseline from the base model. "
