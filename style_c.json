@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "profile_name": "expert_c",
+  "style_summary": "Crisp, true-to-life images with balanced exposure, natural color saturation, and a clear, neutral tone that emphasizes architectural and environmental details.",
+  "facets": {
+    "exposure": "balanced exposure with bright but controlled luminance",
+    "contrast": "clean moderate contrast that keeps edges crisp without feeling harsh",
+    "white_balance": "neutral white balance with accurate whites",
+    "saturation": "natural, believable saturation with restrained color boosts",
+    "highlight_handling": "preserve bright highlights while keeping window detail readable",
+    "shadow_handling": "keep shadows open enough to retain structural detail",
+    "scene_tendency": "works cleanly across interiors and exteriors with real-estate clarity",
+    "mood": "clear, polished, documentary-real"
+  },
+  "composed_prompt": "Crisp, true-to-life images with balanced exposure, natural color saturation, and a clear, neutral tone that emphasizes architectural and environmental details. Exposure: balanced exposure with bright but controlled luminance. Contrast: clean moderate contrast that keeps edges crisp without feeling harsh. White balance: neutral white balance with accurate whites. Saturation: natural, believable saturation with restrained color boosts. Highlight handling: preserve bright highlights while keeping window detail readable. Shadow handling: keep shadows open enough to retain structural detail. Scene tendency: works cleanly across interiors and exteriors with real-estate clarity. Mood: clear, polished, documentary-real."
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "profile_name": "expert_d",
+  "style_summary": "Cool, desaturated tones with lifted shadows, subtle contrast, and a muted color palette that evokes a calm, documentary mood.",
+  "facets": {
+    "exposure": "slightly lifted exposure with soft overall brightness",
+    "contrast": "subtle contrast with a restrained tonal curve",
+    "white_balance": "cool white balance with understated warmth removal",
+    "saturation": "muted saturation and desaturated color treatment",
+    "highlight_handling": "keep highlights controlled and avoid glossy brightness spikes",
+    "shadow_handling": "lift shadows gently without flattening the frame",
+    "scene_tendency": "leans toward calm interior and overcast exterior rendering when present",
+    "mood": "calm, restrained, documentary"
+  },
+  "composed_prompt": "Cool, desaturated tones with lifted shadows, subtle contrast, and a muted color palette that evokes a calm, documentary mood. Exposure: slightly lifted exposure with soft overall brightness. Contrast: subtle contrast with a restrained tonal curve. White balance: cool white balance with understated warmth removal. Saturation: muted saturation and desaturated color treatment. Highlight handling: keep highlights controlled and avoid glossy brightness spikes. Shadow handling: lift shadows gently without flattening the frame. Scene tendency: leans toward calm interior and overcast exterior rendering when present. Mood: calm, restrained, documentary."
+}

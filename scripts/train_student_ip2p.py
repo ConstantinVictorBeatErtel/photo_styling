@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 from pathlib import Path
 
@@ -14,16 +15,31 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from transformers import CLIPTextModel, CLIPTokenizer
 
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+
+from models.style_cross_attention import (
+    StyleConditioningAdapter,
+    load_style_conditioner,
+    save_style_conditioner,
+    style_conditioner_path,
+)
+
+try:
+    from style_profile import build_style_paths, load_style_profile
+except ModuleNotFoundError:  # pragma: no cover - supports python -m scripts.train_student_ip2p
+    from .style_profile import build_style_paths, load_style_profile
+
+
 ASSETS_ROOT = PROJECT_ROOT / "assets"
 MODEL_ID = "timbrooks/instruct-pix2pix"
 DEFAULT_TEACHER_ROOT = PROJECT_ROOT / "teacher_kontext_v2"
 DEFAULT_SAVE_ROOT = PROJECT_ROOT / "student_ip2p_v2_r8"
 DEFAULT_LOSS_OUTPUT = ASSETS_ROOT / "loss_curves_v2_r8.png"
 STYLE_FILES = {
-    "c": PROJECT_ROOT / "style_c.txt",
-    "d": PROJECT_ROOT / "style_d.txt",
+    "c": build_style_paths(PROJECT_ROOT, "c"),
+    "d": build_style_paths(PROJECT_ROOT, "d"),
 }
 
 
@@ -43,10 +59,10 @@ def format_path(path: Path) -> str:
         return str(path)
 
 
-def build_student_prompt(style: str) -> str:
+def build_student_prompt(style_prompt: str) -> str:
     return (
         "Apply this photographic style while preserving the exact scene, subject, composition, and objects: "
-        f"{style}"
+        f"{style_prompt}"
     )
 
 
@@ -97,6 +113,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rank", type=int, default=8)
     parser.add_argument("--lora-alpha", type=int, default=32)
     parser.add_argument("--lora-dropout", type=float, default=0.1)
+    parser.add_argument(
+        "--disable-style-cross-attention",
+        action="store_true",
+        help="Use the original plain text conditioning path without the custom fusion block.",
+    )
+    parser.add_argument("--style-fusion-hidden-dim", type=int, default=256)
+    parser.add_argument("--style-fusion-heads", type=int, default=4)
+    parser.add_argument("--style-source-grid-size", type=int, default=16)
+    parser.add_argument("--style-fusion-mlp-ratio", type=float, default=2.0)
     parser.add_argument("--loss-output", type=Path, default=DEFAULT_LOSS_OUTPUT)
     parser.add_argument("--disable-plot", action="store_true")
     parser.add_argument(
@@ -153,7 +178,11 @@ def load_trainable_unet(
     return unet
 
 
-def encode_prompt(tokenizer: CLIPTokenizer, text_encoder: CLIPTextModel, prompt: str) -> torch.Tensor:
+def encode_prompt(
+    tokenizer: CLIPTokenizer,
+    text_encoder: CLIPTextModel,
+    prompt: str,
+) -> tuple[torch.Tensor, torch.Tensor]:
     with torch.no_grad():
         tokens = tokenizer(
             [prompt],
@@ -162,7 +191,7 @@ def encode_prompt(tokenizer: CLIPTokenizer, text_encoder: CLIPTextModel, prompt:
             truncation=True,
             return_tensors="pt",
         ).to(DEVICE)
-        return text_encoder(**tokens).last_hidden_state
+        return text_encoder(**tokens).last_hidden_state, tokens.attention_mask
 
 
 def encode_source_image_latents(vae: AutoencoderKL, images: torch.Tensor) -> torch.Tensor:
@@ -180,7 +209,10 @@ def save_metadata(
     out_dir: Path,
     *,
     expert: str,
-    style: str,
+    style_profile: dict[str, object],
+    training_prompt: str,
+    style_conditioning_enabled: bool,
+    style_conditioner_config: dict[str, object] | None,
     teacher_dir: Path,
     dataset_size: int,
     steps: int,
@@ -188,7 +220,12 @@ def save_metadata(
 ) -> None:
     metadata = {
         "expert": expert,
-        "style": style,
+        "style": style_profile["style_summary"],
+        "style_profile": style_profile,
+        "composed_style_prompt": style_profile["composed_prompt"],
+        "training_prompt": training_prompt,
+        "style_conditioning_enabled": style_conditioning_enabled,
+        "style_conditioner_config": style_conditioner_config,
         "teacher_dir": format_path(teacher_dir),
         "dataset_size": dataset_size,
         "steps": steps,
@@ -201,24 +238,29 @@ def save_metadata(
 def save_checkpoint(
     *,
     unet: UNet2DConditionModel,
+    style_conditioner: StyleConditioningAdapter | None,
     optimizer: torch.optim.Optimizer,
     out_dir: Path,
     expert: str,
     completed_steps: int,
     total_steps: int,
     losses: list[float],
+    style_conditioning_enabled: bool,
 ) -> None:
     checkpoints_dir = out_dir / "checkpoints"
     checkpoints_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_dir = checkpoints_dir / f"step_{completed_steps:04d}"
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     unet.save_pretrained(checkpoint_dir)
+    if style_conditioner is not None:
+        save_style_conditioner(style_conditioner_path(checkpoint_dir), style_conditioner)
 
     state = {
         "expert": expert,
         "completed_steps": completed_steps,
         "total_steps": total_steps,
         "losses": losses,
+        "style_conditioning_enabled": style_conditioning_enabled,
         "optimizer_state_dict": optimizer.state_dict(),
         "checkpoint_dir": str(checkpoint_dir),
         "saved_at": time.time(),
@@ -232,6 +274,31 @@ def load_resume_state(out_dir: Path) -> dict | None:
     if not state_path.exists():
         return None
     return torch.load(state_path, map_location="cpu")
+
+
+def build_style_conditioner(
+    *,
+    checkpoint_dir: Path | None,
+    source_dim: int,
+    style_dim: int,
+    hidden_dim: int,
+    num_heads: int,
+    source_grid_size: int,
+    mlp_ratio: float,
+) -> StyleConditioningAdapter:
+    if checkpoint_dir is not None:
+        checkpoint_path = style_conditioner_path(checkpoint_dir)
+        if checkpoint_path.exists():
+            return load_style_conditioner(checkpoint_path, map_location=DEVICE).to(DEVICE)
+
+    return StyleConditioningAdapter(
+        source_dim=source_dim,
+        style_dim=style_dim,
+        hidden_dim=hidden_dim,
+        num_heads=num_heads,
+        source_grid_size=source_grid_size,
+        mlp_ratio=mlp_ratio,
+    ).to(DEVICE)
 
 
 def train_one_expert(
@@ -253,11 +320,20 @@ def train_one_expert(
     rank: int,
     lora_alpha: int,
     lora_dropout: float,
+    use_style_cross_attention: bool,
+    style_fusion_hidden_dim: int,
+    style_fusion_heads: int,
+    style_source_grid_size: int,
+    style_fusion_mlp_ratio: float,
     fresh: bool,
 ) -> list[float]:
-    style = STYLE_FILES[expert].read_text(encoding="utf-8").strip()
-    prompt = build_student_prompt(style)
-    prompt_embeds = encode_prompt(tokenizer, text_encoder, prompt)
+    style_profile = load_style_profile(
+        STYLE_FILES[expert]["json"],
+        STYLE_FILES[expert]["txt"],
+        profile_name=f"expert_{expert}",
+    )
+    prompt = build_student_prompt(style_profile["composed_prompt"])
+    prompt_embeds, prompt_attention_mask = encode_prompt(tokenizer, text_encoder, prompt)
 
     raw_dir = PROJECT_ROOT / "data" / f"expert_{expert}" / "raw"
     teacher_dir = teacher_root / f"expert_{expert}"
@@ -268,10 +344,6 @@ def train_one_expert(
     out_dir.mkdir(parents=True, exist_ok=True)
     resume_state = None if fresh else load_resume_state(out_dir)
 
-    print(f"\n=== Training student for expert {expert.upper()} ===", flush=True)
-    print(f"Matched teacher pairs: {len(dataset)}", flush=True)
-    print(f"Prompt: {prompt}", flush=True)
-
     checkpoint_dir = None
     completed_steps = 0
     losses: list[float] = []
@@ -280,6 +352,12 @@ def train_one_expert(
         checkpoint_dir_value = resume_state.get("checkpoint_dir")
         checkpoint_dir = Path(checkpoint_dir_value) if checkpoint_dir_value else None
         losses = list(resume_state.get("losses", []))
+        resume_style_conditioning = bool(resume_state.get("style_conditioning_enabled", False))
+        if resume_style_conditioning != use_style_cross_attention:
+            raise ValueError(
+                "Resume checkpoint style-conditioning setting does not match the current run. "
+                "Use the same setting or pass --fresh."
+            )
         if completed_steps >= steps and (out_dir / "adapter_model.safetensors").exists():
             print(f"Expert {expert.upper()} already finished at step {completed_steps}, skipping.", flush=True)
             return losses
@@ -290,14 +368,34 @@ def train_one_expert(
         lora_alpha=lora_alpha,
         lora_dropout=lora_dropout,
     )
-    optimizer = torch.optim.AdamW(
-        [parameter for parameter in unet.parameters() if parameter.requires_grad],
-        lr=learning_rate,
-        weight_decay=weight_decay,
-    )
+    style_conditioner = None
+    trainable_parameters = [parameter for parameter in unet.parameters() if parameter.requires_grad]
+    if use_style_cross_attention:
+        style_conditioner = build_style_conditioner(
+            checkpoint_dir=checkpoint_dir,
+            source_dim=int(vae.config.latent_channels),
+            style_dim=prompt_embeds.shape[-1],
+            hidden_dim=style_fusion_hidden_dim,
+            num_heads=style_fusion_heads,
+            source_grid_size=style_source_grid_size,
+            mlp_ratio=style_fusion_mlp_ratio,
+        )
+        style_conditioner.train()
+        trainable_parameters.extend(parameter for parameter in style_conditioner.parameters() if parameter.requires_grad)
+
+    optimizer = torch.optim.AdamW(trainable_parameters, lr=learning_rate, weight_decay=weight_decay)
     if resume_state is not None and "optimizer_state_dict" in resume_state:
         optimizer.load_state_dict(resume_state["optimizer_state_dict"])
         print(f"Resuming expert {expert.upper()} from step {completed_steps}", flush=True)
+
+    print(f"\n=== Training student for expert {expert.upper()} ===", flush=True)
+    print(f"Matched teacher pairs: {len(dataset)}", flush=True)
+    print(f"Prompt: {prompt}", flush=True)
+    if style_conditioner is not None:
+        print(
+            "Style cross-attention enabled: source VAE latents attend over style text tokens before the UNet.",
+            flush=True,
+        )
 
     data_iter = iter(loader)
     optimizer.zero_grad(set_to_none=True)
@@ -327,6 +425,9 @@ def train_one_expert(
         noisy_target_latents = scheduler.add_noise(target_latents, noise, timesteps)
         model_input = torch.cat([noisy_target_latents, source_latents], dim=1)
         prompt_batch = prompt_embeds.expand(target_latents.shape[0], -1, -1)
+        prompt_mask_batch = prompt_attention_mask.expand(target_latents.shape[0], -1)
+        if style_conditioner is not None:
+            prompt_batch, _ = style_conditioner(source_latents, prompt_batch, prompt_mask_batch)
 
         noise_pred = unet(
             model_input,
@@ -361,28 +462,37 @@ def train_one_expert(
         if (step + 1) % checkpoint_interval == 0 and (step + 1) < steps:
             save_checkpoint(
                 unet=unet,
+                style_conditioner=style_conditioner,
                 optimizer=optimizer,
                 out_dir=out_dir,
                 expert=expert,
                 completed_steps=step + 1,
                 total_steps=steps,
                 losses=losses,
+                style_conditioning_enabled=style_conditioner is not None,
             )
 
     unet.save_pretrained(out_dir)
+    if style_conditioner is not None:
+        save_style_conditioner(style_conditioner_path(out_dir), style_conditioner)
     save_checkpoint(
         unet=unet,
+        style_conditioner=style_conditioner,
         optimizer=optimizer,
         out_dir=out_dir,
         expert=expert,
         completed_steps=steps,
         total_steps=steps,
         losses=losses,
+        style_conditioning_enabled=style_conditioner is not None,
     )
     save_metadata(
         out_dir,
         expert=expert,
-        style=style,
+        style_profile=style_profile,
+        training_prompt=prompt,
+        style_conditioning_enabled=style_conditioner is not None,
+        style_conditioner_config=style_conditioner.get_config() if style_conditioner is not None else None,
         teacher_dir=teacher_dir,
         dataset_size=len(dataset),
         steps=steps,
@@ -392,6 +502,9 @@ def train_one_expert(
 
     unet.to("cpu")
     del unet
+    if style_conditioner is not None:
+        style_conditioner.to("cpu")
+        del style_conditioner
     if DEVICE.type == "mps":
         torch.mps.empty_cache()
     return losses
@@ -456,6 +569,11 @@ def main() -> None:
             rank=args.rank,
             lora_alpha=args.lora_alpha,
             lora_dropout=args.lora_dropout,
+            use_style_cross_attention=not args.disable_style_cross_attention,
+            style_fusion_hidden_dim=args.style_fusion_hidden_dim,
+            style_fusion_heads=args.style_fusion_heads,
+            style_source_grid_size=args.style_source_grid_size,
+            style_fusion_mlp_ratio=args.style_fusion_mlp_ratio,
             fresh=args.fresh,
         )
 

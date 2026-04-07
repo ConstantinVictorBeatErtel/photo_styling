@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -9,13 +10,27 @@ from diffusers import StableDiffusionInstructPix2PixPipeline, UNet2DConditionMod
 from peft import PeftModel
 from PIL import Image
 
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+
+from scripts.style_conditioning_runtime import build_pipeline_conditioning, maybe_load_inference_style_conditioner
+
+try:
+    from style_profile import build_style_paths, load_style_profile
+except ModuleNotFoundError:  # pragma: no cover - supports python -m scripts.generate_student_demo_v2
+    from .style_profile import build_style_paths, load_style_profile
+
+
 ASSETS_ROOT = PROJECT_ROOT / "assets"
 MODEL_ID = "timbrooks/instruct-pix2pix"
 DEFAULT_STUDENT_ROOT = PROJECT_ROOT / "student_ip2p_v2_r8"
 DEFAULT_TEACHER_ROOT = PROJECT_ROOT / "teacher_kontext_v2"
 DEFAULT_OUTPUT = ASSETS_ROOT / "demo_grid_student_v2_r8.png"
+STYLE_FILES = {
+    "c": build_style_paths(PROJECT_ROOT, "c"),
+    "d": build_style_paths(PROJECT_ROOT, "d"),
+}
 
 
 def get_device() -> str:
@@ -25,10 +40,10 @@ def get_device() -> str:
 DEVICE = get_device()
 
 
-def build_student_prompt(style: str) -> str:
+def build_student_prompt(style_prompt: str) -> str:
     return (
         "Apply this photographic style while preserving the exact scene, subject, composition, and objects: "
-        f"{style}"
+        f"{style_prompt}"
     )
 
 
@@ -63,14 +78,14 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_pipe(student_dir: Path | None = None) -> StableDiffusionInstructPix2PixPipeline:
+def load_pipe(student_dir: Path | None = None) -> tuple[StableDiffusionInstructPix2PixPipeline, object | None]:
     if student_dir is None:
         pipe = StableDiffusionInstructPix2PixPipeline.from_pretrained(
             MODEL_ID,
             torch_dtype=torch.float32,
             safety_checker=None,
         )
-        return pipe.to(DEVICE)
+        return pipe.to(DEVICE), None
 
     base_unet = UNet2DConditionModel.from_pretrained(MODEL_ID, subfolder="unet", torch_dtype=torch.float32)
     merged_unet = PeftModel.from_pretrained(base_unet, student_dir).merge_and_unload()
@@ -80,25 +95,45 @@ def load_pipe(student_dir: Path | None = None) -> StableDiffusionInstructPix2Pix
         torch_dtype=torch.float32,
         safety_checker=None,
     )
-    return pipe.to(DEVICE)
+    pipe = pipe.to(DEVICE)
+    style_conditioner = maybe_load_inference_style_conditioner(student_dir, DEVICE)
+    return pipe, style_conditioner
 
 
 def run_edit(
     pipe: StableDiffusionInstructPix2PixPipeline,
     raw_image: Image.Image,
     prompt: str,
+    style_conditioner,
     *,
     steps: int,
     guidance_scale: float,
     image_guidance_scale: float,
 ) -> Image.Image:
-    result = pipe(
+    conditioning = build_pipeline_conditioning(
+        pipe,
         prompt=prompt,
         image=raw_image,
-        num_inference_steps=steps,
-        guidance_scale=guidance_scale,
-        image_guidance_scale=image_guidance_scale,
-    ).images[0]
+        style_conditioner=style_conditioner,
+        device=DEVICE,
+    )
+    if conditioning is None:
+        result = pipe(
+            prompt=prompt,
+            image=raw_image,
+            num_inference_steps=steps,
+            guidance_scale=guidance_scale,
+            image_guidance_scale=image_guidance_scale,
+        ).images[0]
+    else:
+        result = pipe(
+            prompt=None,
+            image=raw_image,
+            num_inference_steps=steps,
+            guidance_scale=guidance_scale,
+            image_guidance_scale=image_guidance_scale,
+            **conditioning,
+        ).images[0]
     return result
 
 
@@ -116,8 +151,8 @@ def maybe_load_teacher_outputs(teacher_root: Path, filenames: list[str]) -> tupl
 def main() -> None:
     args = parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    style_c = (PROJECT_ROOT / "style_c.txt").read_text(encoding="utf-8").strip()
-    style_d = (PROJECT_ROOT / "style_d.txt").read_text(encoding="utf-8").strip()
+    style_c = load_style_profile(STYLE_FILES["c"]["json"], STYLE_FILES["c"]["txt"], profile_name="expert_c")
+    style_d = load_style_profile(STYLE_FILES["d"]["json"], STYLE_FILES["d"]["txt"], profile_name="expert_d")
     all_raw_files = sorted((PROJECT_ROOT / "data" / "expert_c" / "raw").glob("*.jpg"))
     if args.filenames:
         requested = set(args.filenames)
@@ -130,11 +165,11 @@ def main() -> None:
     filenames = [path.name for path in test_files]
 
     print("Loading baseline pipeline...", flush=True)
-    baseline_pipe = load_pipe()
+    baseline_pipe, baseline_conditioner = load_pipe()
     print("Loading student C pipeline...", flush=True)
-    student_c_pipe = load_pipe(args.student_root / "expert_c")
+    student_c_pipe, student_c_conditioner = load_pipe(args.student_root / "expert_c")
     print("Loading student D pipeline...", flush=True)
-    student_d_pipe = load_pipe(args.student_root / "expert_d")
+    student_d_pipe, student_d_conditioner = load_pipe(args.student_root / "expert_d")
 
     teacher_available, teacher_c_images, teacher_d_images = maybe_load_teacher_outputs(args.teacher_root, filenames)
     results = []
@@ -146,6 +181,7 @@ def main() -> None:
             baseline_pipe,
             raw_image,
             build_baseline_prompt(),
+            baseline_conditioner,
             steps=args.steps,
             guidance_scale=args.guidance_scale,
             image_guidance_scale=args.image_guidance_scale,
@@ -153,7 +189,8 @@ def main() -> None:
         student_c = run_edit(
             student_c_pipe,
             raw_image,
-            build_student_prompt(style_c),
+            build_student_prompt(style_c["composed_prompt"]),
+            student_c_conditioner,
             steps=args.steps,
             guidance_scale=args.guidance_scale,
             image_guidance_scale=args.image_guidance_scale,
@@ -161,7 +198,8 @@ def main() -> None:
         student_d = run_edit(
             student_d_pipe,
             raw_image,
-            build_student_prompt(style_d),
+            build_student_prompt(style_d["composed_prompt"]),
+            student_d_conditioner,
             steps=args.steps,
             guidance_scale=args.guidance_scale,
             image_guidance_scale=args.image_guidance_scale,

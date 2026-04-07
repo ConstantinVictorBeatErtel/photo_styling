@@ -9,14 +9,18 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 from bfl_kontext import KontextModeratedError, KontextRequestError, edit_image_with_kontext, load_bfl_api_key
+try:
+    from style_profile import build_style_paths, load_style_profile
+except ModuleNotFoundError:  # pragma: no cover - supports python -m scripts.generate_teacher_kontext_v2
+    from .style_profile import build_style_paths, load_style_profile
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_ROOT = PROJECT_ROOT / "data"
 ASSETS_ROOT = PROJECT_ROOT / "assets"
 STYLE_FILES = {
-    "c": PROJECT_ROOT / "style_c.txt",
-    "d": PROJECT_ROOT / "style_d.txt",
+    "c": build_style_paths(PROJECT_ROOT, "c"),
+    "d": build_style_paths(PROJECT_ROOT, "d"),
 }
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "teacher_kontext_v2"
 
@@ -34,7 +38,12 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_style(expert: str) -> str:
-    return STYLE_FILES[expert].read_text(encoding="utf-8").strip()
+    profile = load_style_profile(
+        STYLE_FILES[expert]["json"],
+        STYLE_FILES[expert]["txt"],
+        profile_name=f"expert_{expert}",
+    )
+    return profile["composed_prompt"]
 
 
 def build_teacher_edit_prompt(style: str) -> str:

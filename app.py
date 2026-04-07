@@ -7,13 +7,19 @@ from pathlib import Path
 import streamlit as st
 from PIL import Image, ImageOps
 
+from scripts.style_profile import build_style_paths, load_style_profile
+
 
 ROOT = Path(__file__).resolve().parent
 ASSETS = ROOT / "assets"
 SAMPLE_ASSETS = ASSETS / "samples"
 DATA_ROOT = ROOT / "data"
-STYLE_C = (ROOT / "style_c.txt").read_text(encoding="utf-8").strip()
-STYLE_D = (ROOT / "style_d.txt").read_text(encoding="utf-8").strip()
+STYLE_FILES = {
+    "c": build_style_paths(ROOT, "c"),
+    "d": build_style_paths(ROOT, "d"),
+}
+STYLE_C = load_style_profile(STYLE_FILES["c"]["json"], STYLE_FILES["c"]["txt"], profile_name="expert_c")
+STYLE_D = load_style_profile(STYLE_FILES["d"]["json"], STYLE_FILES["d"]["txt"], profile_name="expert_d")
 
 PIPELINE_DIAGRAM = ASSETS / "pipeline_overview_v2.svg"
 TRAIN_GRID = ASSETS / "demo_grid_student_v2_r8.png"
@@ -56,10 +62,10 @@ def adapter_size_mb(expert: str) -> float | None:
     return adapter_path.stat().st_size / (1024 * 1024)
 
 
-def build_student_prompt(style: str) -> str:
+def build_student_prompt(style_prompt: str) -> str:
     return (
         "Apply this photographic style while preserving the exact scene, subject, composition, and objects: "
-        f"{style}"
+        f"{style_prompt}"
     )
 
 
@@ -116,8 +122,11 @@ def load_pipe(kind: str, *, expert: str | None = None):
             safety_checker=None,
             requires_safety_checker=False,
         )
+        style_conditioner = None
     else:
         assert expert is not None
+        from scripts.style_conditioning_runtime import maybe_load_inference_style_conditioner
+
         base_unet = UNet2DConditionModel.from_pretrained(
             model_id,
             subfolder="unet",
@@ -134,11 +143,12 @@ def load_pipe(kind: str, *, expert: str | None = None):
             safety_checker=None,
             requires_safety_checker=False,
         )
+        style_conditioner = maybe_load_inference_style_conditioner(STUDENT_ROOT / f"expert_{expert}", device)
 
     pipe = pipe.to(device)
     pipe.enable_attention_slicing()
     pipe.set_progress_bar_config(disable=True)
-    return pipe, device
+    return pipe, device, style_conditioner
 
 
 def unload_pipe(pipe, device: str) -> None:
@@ -153,25 +163,44 @@ def unload_pipe(pipe, device: str) -> None:
 def run_edit(kind: str, image: Image.Image, *, steps: int, guidance_scale: float, image_guidance_scale: float):
     if kind == "baseline":
         prompt = build_baseline_prompt()
-        pipe, device = load_pipe("baseline")
+        pipe, device, style_conditioner = load_pipe("baseline")
         label = "Generic edit"
     elif kind == "c":
-        prompt = build_student_prompt(STYLE_C)
-        pipe, device = load_pipe("student", expert="c")
+        prompt = build_student_prompt(STYLE_C["composed_prompt"])
+        pipe, device, style_conditioner = load_pipe("student", expert="c")
         label = "Bright neutral adapter"
     else:
-        prompt = build_student_prompt(STYLE_D)
-        pipe, device = load_pipe("student", expert="d")
+        prompt = build_student_prompt(STYLE_D["composed_prompt"])
+        pipe, device, style_conditioner = load_pipe("student", expert="d")
         label = "Cool muted adapter"
 
     start = time.perf_counter()
-    result = pipe(
-        prompt=prompt,
-        image=image,
-        num_inference_steps=steps,
-        guidance_scale=guidance_scale,
-        image_guidance_scale=image_guidance_scale,
-    ).images[0]
+    if style_conditioner is None:
+        result = pipe(
+            prompt=prompt,
+            image=image,
+            num_inference_steps=steps,
+            guidance_scale=guidance_scale,
+            image_guidance_scale=image_guidance_scale,
+        ).images[0]
+    else:
+        from scripts.style_conditioning_runtime import build_pipeline_conditioning
+
+        conditioning = build_pipeline_conditioning(
+            pipe,
+            prompt=prompt,
+            image=image,
+            style_conditioner=style_conditioner,
+            device=device,
+        )
+        result = pipe(
+            prompt=None,
+            image=image,
+            num_inference_steps=steps,
+            guidance_scale=guidance_scale,
+            image_guidance_scale=image_guidance_scale,
+            **conditioning,
+        ).images[0]
     elapsed = time.perf_counter() - start
     unload_pipe(pipe, device)
     return label, result, elapsed
@@ -421,7 +450,7 @@ with style_cols[0]:
         <div class="style-note">
             <div class="mini-label">Bright neutral finish</div>
             <h4>Photographer-specific bright neutral adapter</h4>
-            <p>{STYLE_C}</p>
+            <p>{STYLE_C["style_summary"]}</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -432,7 +461,7 @@ with style_cols[1]:
         <div class="style-note">
             <div class="mini-label">Cool muted finish</div>
             <h4>Photographer-specific cool muted adapter</h4>
-            <p>{STYLE_D}</p>
+            <p>{STYLE_D["style_summary"]}</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -474,9 +503,10 @@ with explain_cols[1]:
     st.markdown(
         """
         <div class="section-copy">
-        BLIP-2 captions each photographer's historical edits. DeepSeek compresses those captions into a one-sentence
-        finish description. FLUX Kontext then generates teacher edits that preserve scene content while matching that
-        finish. Finally, a smaller InstructPix2Pix LoRA is distilled on those raw-to-teacher pairs.
+        BLIP-2 captions each photographer's historical edits. DeepSeek turns those captions into a compact structured
+        style profile with a summary plus a few editing facets. FLUX Kontext then generates teacher edits that preserve
+        scene content while matching the composed style prompt. Finally, a smaller InstructPix2Pix LoRA is distilled
+        on those raw-to-teacher pairs.
         <br><br>
         This is the important v2 correction over a style-only LoRA: the student is trained as a source-conditioned edit
         model, not just a stylistic image generator.
@@ -596,8 +626,8 @@ if "latest_results" in st.session_state:
         with col:
             st.image(image, caption=label, use_container_width=True)
             if label == "Bright neutral adapter":
-                st.caption(STYLE_C)
+                st.caption(STYLE_C["style_summary"])
             elif label == "Cool muted adapter":
-                st.caption(STYLE_D)
+                st.caption(STYLE_D["style_summary"])
             elif label != "Input image":
                 st.caption(f"{elapsed:.1f}s")

@@ -15,12 +15,15 @@ from transformers import (
     BlipImageProcessor,
 )
 
+try:
+    from style_profile import build_style_paths, normalize_style_profile, save_style_profile
+except ModuleNotFoundError:  # pragma: no cover - supports python -m scripts.generate_style
+    from .style_profile import build_style_paths, normalize_style_profile, save_style_profile
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EXPERT_C_DIR = PROJECT_ROOT / "data" / "expert_c" / "edited"
 EXPERT_D_DIR = PROJECT_ROOT / "data" / "expert_d" / "edited"
-STYLE_C_PATH = PROJECT_ROOT / "style_c.txt"
-STYLE_D_PATH = PROJECT_ROOT / "style_d.txt"
 MODEL_ID = "Salesforce/blip2-opt-2.7b"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 CAPTION_COUNT = 50
@@ -77,7 +80,20 @@ def save_captions(path: Path | None, captions: list[str]) -> None:
     path.write_text(json.dumps(captions, indent=2), encoding="utf-8")
 
 
-def get_style_prompt(captions: list[str], api_key: str) -> str:
+def extract_json_object(response_text: str) -> dict[str, object]:
+    """Parse a single JSON object from a model response."""
+
+    content = response_text.strip()
+    start = content.find("{")
+    end = content.rfind("}")
+    if start == -1 or end == -1 or end < start:
+        raise ValueError(f"Model response did not include a JSON object: {response_text}")
+    return json.loads(content[start : end + 1])
+
+
+def get_style_profile(captions: list[str], api_key: str, profile_name: str) -> dict[str, object]:
+    """Generate a structured style profile from BLIP-2 captions."""
+
     caption_block = "\n".join(f"- {caption}" for caption in captions)
     response = requests.post(
         OPENROUTER_URL,
@@ -92,24 +108,47 @@ def get_style_prompt(captions: list[str], api_key: str) -> str:
                 {
                     "role": "user",
                     "content": (
-                        "These are auto-generated captions of photos edited by a professional photographer:\n\n"
+                        "These are auto-generated captions of photos edited by a professional photographer.\n"
+                        "Return a JSON object only, with no markdown fences and no extra text.\n\n"
+                        f'Use "profile_name": "{profile_name}".\n'
+                        "Use exactly these top-level keys: profile_name, style_summary, facets.\n"
+                        "Use exactly these facet keys: exposure, contrast, white_balance, saturation, "
+                        "highlight_handling, shadow_handling, scene_tendency, mood.\n"
+                        "Rules:\n"
+                        "- style_summary must be one sentence that is specific and visual.\n"
+                        "- each facet should be a short phrase grounded in the captions.\n"
+                        "- if a facet is not evident, use an empty string.\n"
+                        "- do not mention cameras, metadata, or editing software.\n\n"
+                        "Captions:\n\n"
                         f"{caption_block}\n\n"
-                        "Summarize their editing style in ONE sentence, as if describing how they edit to an AI photo editor.\n"
-                        "Focus on: tone (warm/cool/neutral), brightness, contrast, color palette, and mood.\n"
-                        'Be specific and visual. Do not use vague words like "professional" or "high quality".\n'
-                        'Example format: "Bright, airy interiors with lifted shadows, warm white balance, and soft contrast."\n'
-                        "Reply with only the sentence, nothing else."
+                        "Example structure:\n"
+                        "{\n"
+                        '  "profile_name": "cool_muted",\n'
+                        '  "style_summary": "Cool, restrained, editorial real-estate finish.",\n'
+                        '  "facets": {\n'
+                        '    "exposure": "slightly lifted exposure with controlled brightness",\n'
+                        '    "contrast": "moderate, soft contrast",\n'
+                        '    "white_balance": "slightly cool white balance",\n'
+                        '    "saturation": "muted saturation",\n'
+                        '    "highlight_handling": "preserve bright window detail",\n'
+                        '    "shadow_handling": "keep shadows open but not flat",\n'
+                        '    "scene_tendency": "leans toward calm interiors when visible",\n'
+                        '    "mood": "calm, documentary, restrained"\n'
+                        "  }\n"
+                        "}"
                     ),
                 }
             ],
-            "max_tokens": 100,
-            "temperature": 0.3,
+            "max_tokens": 300,
+            "temperature": 0.2,
         },
         timeout=(10, 120),
     )
     response.raise_for_status()
     result = response.json()
-    return result["choices"][0]["message"]["content"].strip()
+    content = result["choices"][0]["message"]["content"].strip()
+    raw_profile = extract_json_object(content)
+    return normalize_style_profile(raw_profile, profile_name=profile_name)
 
 
 def main() -> None:
@@ -125,17 +164,25 @@ def main() -> None:
     captions_d = caption_images(EXPERT_D_DIR, processor, model)
     save_captions(caption_save_dir / "profile_d_captions.json", captions_d)
 
-    print("\nGenerating style prompt for Expert C...", flush=True)
-    style_c = get_style_prompt(captions_c, api_key)
-    print(f"Expert C style: {style_c}", flush=True)
+    print("\nGenerating structured style profile for Expert C...", flush=True)
+    style_c = get_style_profile(captions_c, api_key, "expert_c")
+    print(f"Expert C summary: {style_c['style_summary']}", flush=True)
+    print(f"Expert C composed prompt: {style_c['composed_prompt']}", flush=True)
 
-    print("\nGenerating style prompt for Expert D...", flush=True)
-    style_d = get_style_prompt(captions_d, api_key)
-    print(f"Expert D style: {style_d}", flush=True)
+    print("\nGenerating structured style profile for Expert D...", flush=True)
+    style_d = get_style_profile(captions_d, api_key, "expert_d")
+    print(f"Expert D summary: {style_d['style_summary']}", flush=True)
+    print(f"Expert D composed prompt: {style_d['composed_prompt']}", flush=True)
 
-    STYLE_C_PATH.write_text(style_c, encoding="utf-8")
-    STYLE_D_PATH.write_text(style_d, encoding="utf-8")
-    print("\nSaved style_c.txt and style_d.txt", flush=True)
+    style_paths_c = build_style_paths(PROJECT_ROOT, "c")
+    style_paths_d = build_style_paths(PROJECT_ROOT, "d")
+
+    save_style_profile(style_paths_c["json"], style_c)
+    save_style_profile(style_paths_d["json"], style_d)
+    # Keep the old txt files around for legacy consumers.
+    style_paths_c["txt"].write_text(style_c["style_summary"], encoding="utf-8")
+    style_paths_d["txt"].write_text(style_d["style_summary"], encoding="utf-8")
+    print("\nSaved style_c.json, style_d.json, and legacy style_c.txt/style_d.txt", flush=True)
 
 
 if __name__ == "__main__":
