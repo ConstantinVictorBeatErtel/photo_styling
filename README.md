@@ -107,6 +107,14 @@ What looks better in the cross-attention row:
 - the cool treatment is pushed more deliberately into the sky, shadows, and statue highlights instead of reading like a lighter version of the neutral finish
 - scene structure still stays intact, so the stronger style separation is not coming from a content rewrite
 
+> Why cross-attention helps
+>
+> The student is no longer relying on style text alone. Source image features can attend over style tokens, which makes the conditioning more source-aware. On this example, that mainly shows up as stronger cool-muted separation without losing the scene.
+
+> How we implemented it
+>
+> We kept the change intentionally small: source tokens come from the frozen VAE latent map, style tokens come from the existing CLIP text encoder, and a custom cross-attention block produces one extra fused conditioning token that is appended before the UNet call.
+
 The tradeoff is that the `bright-neutral` student also drifts a little cooler than the prompt-only baseline on this example. So the honest takeaway is not "cross-attention wins everywhere." It is:
 
 > the fusion block is doing something real and explainable, and on this image it improves style separation most clearly for the cool-muted profile

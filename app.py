@@ -309,6 +309,24 @@ st.markdown(
         font-weight: 800;
         margin-bottom: 0.55rem;
     }
+    .feature-panel {
+        padding: 1.1rem 1.15rem;
+        border-radius: 24px;
+        background: linear-gradient(180deg, rgba(255,255,255,0.90), rgba(239,246,248,0.96));
+        border: 1px solid rgba(18, 51, 61, 0.10);
+        box-shadow: 0 18px 36px rgba(25, 43, 57, 0.08);
+        margin: 0.35rem 0 0.85rem 0;
+    }
+    .feature-panel h3 {
+        margin: 0 0 0.45rem 0;
+        color: #111111;
+        font-size: 1.18rem;
+    }
+    .feature-panel p {
+        margin: 0;
+        color: #111111;
+        line-height: 1.62;
+    }
     .stRadio > label,
     .stSelectbox > label,
     .stMultiSelect > label,
@@ -634,18 +652,58 @@ if "latest_results" in st.session_state:
                 st.caption(f"{elapsed:.1f}s")
 
 st.markdown("### What the cross-attention block changes")
-st.write(
-    "The original strongest-evidence grid above stays because it is still the clearest summary of the base product story. "
-    "This second comparison is narrower and more educational: the regular prompt-only student is on top, and the cross-attention "
-    "student is below on the same source image."
+st.markdown(
+    """
+    <div class="feature-panel">
+        <div class="mini-label">Educational multimodal fusion</div>
+        <h3>Prompt-only student on top, cross-attention student below</h3>
+        <p>
+            The original strongest-evidence grid above stays because it is still the clearest summary of the core product story.
+            This second comparison is narrower on purpose: it isolates the conditioning change and shows what happens when the
+            student sees source image features and style token features together.
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 show_image(
     CROSS_ATTENTION_GRID,
     "Top: prompt-only student. Bottom: cross-attention student on the same source image.",
 )
-st.write(
-    "The most useful change in this example is stronger profile separation for the cool-muted finish. The cross-attention "
-    "student pushes the cooler treatment more deliberately into the sky, dark building faces, and statue highlights while still "
-    "preserving the scene layout. The bright-neutral branch does drift a bit cooler too, so this is best read as a meaningful "
-    "fusion experiment rather than a universal replacement for the current tracked baseline."
+cross_cols = st.columns(2)
+cross_cards = [
+    (
+        "Why Cross-Attention Helps",
+        "Source-aware style control",
+        "The clearest win here is stronger profile separation for the cool-muted finish. Instead of behaving like a slightly cooler "
+        "version of the neutral branch, the cross-attention student pushes cooler treatment more deliberately into the sky, dark "
+        "building faces, and statue highlights while still preserving scene structure.",
+        ["Better cool-muted separation", "Same scene layout", "More deliberate tone placement"],
+    ),
+    (
+        "How We Did It",
+        "Small custom fusion block",
+        "We kept the integration lightweight. Source image tokens from the frozen VAE latent map become queries, style text tokens "
+        "from the existing CLIP encoder become keys and values, and the fused result is pooled into one extra conditioning token "
+        "that gets appended to the normal prompt embeddings before the UNet call.",
+        ["Queries: source tokens", "Keys/values: style tokens", "One extra conditioning token"],
+    ),
+]
+for col, (title, label, text, pills) in zip(cross_cols, cross_cards):
+    with col:
+        pill_html = "".join(f'<span class="pill">{pill}</span>' for pill in pills)
+        st.markdown(
+            f"""
+            <div class="glass-card">
+                <div class="mini-label">{label}</div>
+                <h3>{title}</h3>
+                <p>{pill_html}</p>
+                <p>{text}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+st.caption(
+    "Tradeoff: the bright-neutral branch also drifts a bit cooler in this example, so this section is best read as a meaningful "
+    "multimodal fusion improvement in style separation rather than a universal replacement for the tracked baseline."
 )
