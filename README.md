@@ -46,6 +46,7 @@ The v2 pipeline is stronger because the student learns from paired source and te
 
 - `app.py`: Streamlit demo for the product story and local inference
 - `assets/demo_grid_student_v2_r8.png`: strongest six-panel qualitative comparison
+- `assets/demo_grid_cross_attention_story.png`: prompt-only vs cross-attention comparison on the same source image
 - `assets/pipeline_overview_v2.svg`: system diagram
 - `models/style_cross_attention.py`: small educational multimodal fusion block
 - `scripts/style_profile.py`: shared loader/composer for structured style profiles
@@ -87,6 +88,28 @@ What success looks like here:
 | Student artifact type | LoRA adapter (`.safetensors`) |
 | Adapter size | about `3.06 MB` per profile |
 | Demo app inference | local inference supported when ML stack and weights are present |
+
+## Cross-Attention Example
+
+![Prompt-only vs cross-attention comparison](assets/demo_grid_cross_attention_story.png)
+
+The original tracked grid stays at the top because it remains the cleanest overall repository summary. The new comparison above is there to show what the custom cross-attention block is actually doing.
+
+How to read it:
+
+- the top row is the current tracked prompt-only student
+- the bottom row is the cross-attention student on the same source image
+- both rows use the same six-panel layout so the difference is about conditioning, not presentation
+
+What looks better in the cross-attention row:
+
+- the `cool-muted` student separates more clearly from `bright-neutral`, which is the main product goal for profile-specific editing
+- the cool treatment is pushed more deliberately into the sky, shadows, and statue highlights instead of reading like a lighter version of the neutral finish
+- scene structure still stays intact, so the stronger style separation is not coming from a content rewrite
+
+The tradeoff is that the `bright-neutral` student also drifts a little cooler than the prompt-only baseline on this example. So the honest takeaway is not "cross-attention wins everywhere." It is:
+
+> the fusion block is doing something real and explainable, and on this image it improves style separation most clearly for the cool-muted profile
 
 ## Evaluation Protocol
 

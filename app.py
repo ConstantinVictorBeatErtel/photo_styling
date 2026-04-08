@@ -23,6 +23,7 @@ STYLE_D = load_style_profile(STYLE_FILES["d"]["json"], STYLE_FILES["d"]["txt"], 
 
 PIPELINE_DIAGRAM = ASSETS / "pipeline_overview_v2.svg"
 TRAIN_GRID = ASSETS / "demo_grid_student_v2_r8.png"
+CROSS_ATTENTION_GRID = ASSETS / "demo_grid_cross_attention_story.png"
 STUDENT_ROOT = ROOT / "student_ip2p_v2_r8"
 PRECOMPUTED_ROOT = ASSETS / "precomputed"
 
@@ -631,3 +632,20 @@ if "latest_results" in st.session_state:
                 st.caption(STYLE_D["style_summary"])
             elif label != "Input image":
                 st.caption(f"{elapsed:.1f}s")
+
+st.markdown("### What the cross-attention block changes")
+st.write(
+    "The original strongest-evidence grid above stays because it is still the clearest summary of the base product story. "
+    "This second comparison is narrower and more educational: the regular prompt-only student is on top, and the cross-attention "
+    "student is below on the same source image."
+)
+show_image(
+    CROSS_ATTENTION_GRID,
+    "Top: prompt-only student. Bottom: cross-attention student on the same source image.",
+)
+st.write(
+    "The most useful change in this example is stronger profile separation for the cool-muted finish. The cross-attention "
+    "student pushes the cooler treatment more deliberately into the sky, dark building faces, and statue highlights while still "
+    "preserving the scene layout. The bright-neutral branch does drift a bit cooler too, so this is best read as a meaningful "
+    "fusion experiment rather than a universal replacement for the current tracked baseline."
+)
